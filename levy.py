@@ -29,12 +29,14 @@ Does not support alpha values less than 0.5.
 import sys
 import numpy as np
 import scipy.special as sp
+from builtins import range
 
-__version__ = "0.5"
+__version__ = "0.6"
 
 # Dimensions: 0 - x, 1 - alpha, 2 - beta
 _lower = np.array([-np.pi / 2 * 0.999, 0.5, -1.0])
 _upper = np.array([np.pi / 2 * 0.999, 2.0, 1.0])
+par_bounds = ((0.5, 2.0), (-1.0, 1.0), (None, None), (None, None))
 
 par_names = ['alpha', 'beta', 'mu', 'sigma']
 default = [1.5, 0.0, 0.0, 1.0]
@@ -100,15 +102,15 @@ def _calculate_levy(x, alpha, beta, cdf=False):
 
     if cdf:
         # Cumulative density function
-        return (integrate.quad(lambda u: u and func_cos(u) / u or 0.0, 0.0, integrate.Inf, weight="sin", wvar=x,
+        return (integrate.quad(lambda u: u and func_cos(u) / u or 0.0, 0.0, np.Inf, weight="sin", wvar=x,
                                limlst=1000)[0]
-                + integrate.quad(lambda u: u and func_sin(u) / u or 0.0, 0.0, integrate.Inf, weight="cos", wvar=x,
+                + integrate.quad(lambda u: u and func_sin(u) / u or 0.0, 0.0, np.Inf, weight="cos", wvar=x,
                                  limlst=1000)[0]
                 ) / np.pi + 0.5
     else:
         # Probability density function
-        return (integrate.quad(func_cos, 0.0, integrate.Inf, weight="cos", wvar=x, limlst=1000)[0]
-                - integrate.quad(func_sin, 0.0, integrate.Inf, weight="sin", wvar=x, limlst=1000)[0]
+        return (integrate.quad(func_cos, 0.0, np.Inf, weight="cos", wvar=x, limlst=1000)[0]
+                - integrate.quad(func_sin, 0.0, np.Inf, weight="sin", wvar=x, limlst=1000)[0]
                 ) / np.pi
 
 
@@ -144,10 +146,10 @@ def _interpolate(points, grid, lower, upper):
     ravel_grid = np.ravel(grid)
 
     result = np.zeros(np.shape(points)[:-1], 'float64')
-    for i in xrange(1 << (dims * 2)):
+    for i in range(1 << (dims * 2)):
         weights = np.ones(np.shape(points)[:-1], 'float64')
         ravel_offset = 0
-        for j in xrange(dims):
+        for j in range(dims):
             n = (i >> (j * 2)) % 4
             ravel_offset = ravel_offset * grid_shape[j] + \
                            np.maximum(0, np.minimum(grid_shape[j] - 1, floors[:, j] + (n - 1)))
@@ -175,27 +177,19 @@ def _make_data_file():
     size = (200, 50, 51)
     pdf = np.zeros(size, 'float64')
     cdf = np.zeros(size, 'float64')
-    xs, alphas, betas = [np.linspace(_lower[i], _upper[i], size[i], endpoint=True) for i in xrange(len(size))]
+    xs, alphas, betas = [np.linspace(_lower[i], _upper[i], size[i], endpoint=True) for i in range(len(size))]
 
-    print "Generating levy_data.py ..."
+    print("Generating levy_data.py ...")
     for i, alpha in enumerate(alphas):
         for j, beta in enumerate(betas):
-            print "Calculating alpha={}, beta={}".format(alpha, beta)
+            print("Calculating alpha={}, beta={}".format(alpha, beta))
             for k, x in enumerate(xs):
                 pdf[k, i, j] = _levy_tan(x, alpha, beta)
                 cdf[k, i, j] = _levy_tan(x, alpha, beta, True)
 
-    file = open("levy_data.py", "wt")
-    file.write("""
-# This is a generated file, do not edit.
-import numpy, base64
 
-pdf = numpy.loads(base64.decodestring(
-\"\"\"%s\"\"\"))\n
-cdf = numpy.loads(base64.decodestring(
-\"\"\"%s\"\"\"))\n""" %
-               (base64.encodestring(pdf.dumps()), base64.encodestring(cdf.dumps())))
-    file.close()
+    np.savez('pdf.npz', pdf)
+    np.savez('cdf.npz', cdf)
 
 
 def _int_levy(x, alpha, beta, cdf=False):
@@ -205,7 +199,6 @@ def _int_levy(x, alpha, beta, cdf=False):
 
         Note: may sometimes return slightly negative values, due to numerical inaccuracies.
     """
-    import levy_data
 
     points = np.empty(np.shape(x) + (3,), 'float64')
     points[..., 0] = np.arctan(x)
@@ -213,9 +206,9 @@ def _int_levy(x, alpha, beta, cdf=False):
     points[..., 2] = beta
 
     if cdf:
-        what = levy_data.cdf
+        what = np.load('cdf.npz')
     else:
-        what = levy_data.pdf
+        what = np.load('pdf.npz')
     return _interpolate(points, what, _lower, _upper)
 
 
@@ -230,29 +223,19 @@ def _get_closest_approx(alpha, beta):
 
 
 def _make_approx_data_file():
-    import base64
-
     size = (50, 51)
     limits = np.zeros(size, 'float64')
     alphas, betas = [
         np.linspace(_lower[1], _upper[1], size[0], endpoint=True),
         np.linspace(0, _upper[2], size[1], endpoint=True)]
 
-    print "Generating levy_approx_data.py ..."
+    print("Generating levy_approx_data.py ...")
     for i, alpha in enumerate(alphas):
         for j, beta in enumerate(betas):
             limits[i, j] = _get_closest_approx(alpha, beta)
-            print "Calculating alpha={}, beta={}, limit={}".format(alpha, beta, limits[i, j])
+            print("Calculating alpha={}, beta={}, limit={}".format(alpha, beta, limits[i, j]))
 
-    file = open("levy_approx_data.py", "wt")
-    file.write("""
-# This is a generated file, do not edit.
-import numpy, base64
-
-limits = numpy.loads(base64.decodestring(
-\"\"\"%s\"\"\"))\n""" %
-               (base64.encodestring(limits.dumps()),))
-    file.close()
+    np.savez('limits.npz', limits)
 
 
 def levy(x, alpha, beta, mu=0.0, sigma=1.0, cdf=False, par=0):
@@ -267,16 +250,13 @@ def levy(x, alpha, beta, mu=0.0, sigma=1.0, cdf=False, par=0):
     elif par == 1:
         loc = mu + beta * sigma * np.tan(np.pi * alpha / 2.0)  # Par 1 is changed
 
-    import levy_data
-    import levy_approx_data
-
     if cdf:
-        what = levy_data.cdf
+        what = np.load('cdf.npz')
         app = _approximate_cdf
     else:
-        what = levy_data.pdf
+        what = np.load('pdf.npz')
         app = _approximate_pdf
-    limits = levy_approx_data.limits
+    limits = np.load('limits.npz')
 
     xr = (x - loc) / sigma
     beta = -beta
@@ -298,11 +278,10 @@ def levy(x, alpha, beta, mu=0.0, sigma=1.0, cdf=False, par=0):
     approximated = app(xr[~mask], alpha, beta)
 
     res = np.empty(np.shape(xr), 'float64')
-    if cdf is False:
-        interpolated = interpolated / sigma
-        approximated = approximated / sigma
     res[mask] = interpolated
     res[~mask] = approximated
+    if cdf is False:
+        res /= sigma
     return res
 
 
@@ -311,7 +290,6 @@ def neglog_levy(x, alpha, beta, mu, sigma, par=0):
     Interpolate negative log densities of the Levy stable distribution specified by alpha and beta.
     Small/negative densities are capped at 1e-100 to preserve sanity.
     """
-    # return -np.log(np.maximum(1e-100, levy(x, alpha, beta)))
     return -np.log(np.maximum(1e-100, levy(x, alpha, beta, mu, sigma, par=par)))
 
 
@@ -366,78 +344,9 @@ def fit_levy(x, alpha=None, beta=None, mu=None, sigma=None, par=0):
         alpha, beta, mu, sigma = p
         return np.sum(neglog_levy(x, alpha, beta, mu, sigma))
 
-    parameters.x = optimize.fmin(neglog_density, parameters.x, disp=0)
+    parameters.x = optimize.minimize(neglog_density, parameters.x, method='L-BFGS-B', bounds=par_bounds, disp=0)
     alpha, beta, mu, sigma = parameters.get_all()
     return alpha, beta, mu, sigma, neglog_density(parameters.x)
-
-    #
-    # from scipy import optimize
-    #
-    # if (type(x) is list) or (isinstance(x, (np.ndarray, np.generic))):
-    #     if (mu is None) or (sigma is None):
-    #         x = np.sort(x)
-    #         last = len(x)-1
-    #         guess_mu0 = x[last/2]
-    #         guess_sigma = (x[last-last/4] - x[last/4])/2.0
-    #         # Maybe there are lots of zeros or something...
-    #         if guess_sigma == 0:
-    #             guess_sigma = (x[last] - x[0]) / 2.0
-    #
-    #     def _neglog_density_fixed(parameters):
-    #         return np.sum(neglog_levy(x, *parameters))
-    #
-    # # Support for the Data class of Datagram package.
-    # # elif x.__class__.__name__ == 'Data':
-    # #     if (mu is None) or (sigma is None):
-    # #         last = len(x.x)-1
-    # #         guess_mu0 = x.x[last/2]
-    # #         guess_sigma = (x.x[last-last/4] - x.x[last/4])/2.0
-    # #
-    # #     def _neglog_density_fixed(parameters):
-    # #         return np.sum(x.counts * neglog_levy(x.x, *parameters))
-    #
-    # parameters = []
-    #
-    # if alpha is not None:
-    #     get_alpha = lambda parameters: alpha
-    # else:
-    #     get_alpha = lambda parameters, nth=len(parameters): \
-    #         _reflect(parameters[nth], _lower[1], _upper[1])
-    #     parameters.append(np.random.uniform(_lower[1], _upper[1]))
-    #
-    # if beta is not None:
-    #     get_beta = lambda parameters: beta
-    # else:
-    #     get_beta = lambda parameters, nth=len(parameters): \
-    #         _reflect(parameters[nth],_lower[2],_upper[2])
-    #     parameters.append(0)
-    #
-    # if mu is not None:
-    #     get_mu0 = lambda parameters: mu0
-    # else:
-    #     get_mu0 = lambda parameters, nth=len(parameters): parameters[nth]
-    #     parameters.append(guess_mu0)
-    #
-    # if sigma is not None:
-    #     get_sigma = lambda parameters: sigma
-    # else:
-    #     get_sigma = lambda parameters, nth=len(parameters): np.exp(parameters[nth])
-    #     parameters.append(np.log(guess_sigma))
-    #
-    # def _neglog_density(parameters):
-    #     alpha = get_alpha(parameters)
-    #     beta = get_beta(parameters)
-    #     mu0 = get_mu0(parameters)
-    #     sigma = get_sigma(parameters)
-    #     return _neglog_density_fixed([alpha, beta, mu0, sigma])
-    #
-    # parameters = optimize.fmin(_neglog_density, parameters, disp=0)
-    #
-    # alpha = get_alpha(parameters)
-    # beta = get_beta(parameters)
-    # mu0 = get_mu0(parameters)
-    # sigma = get_sigma(parameters)
-    # neglog_final = _neglog_density(parameters)
 
     if par == 0:
         mu = mu0
@@ -490,7 +399,7 @@ if __name__ == "__main__":
         _make_data_file()
         _make_approx_data_file()
 
-    print "Testing fit_levy."
+    print("Testing fit_levy.")
 
-    print "1000 points, result should be (1.5, 0.5, 0.0, 1.0)."
-    print fit_levy(random(1.5, 0.5, 0.0, 1.0, 1000))
+    print("1000 points, result should be (1.5, 0.5, 0.0, 1.0).")
+    print(fit_levy(random(1.5, 0.5, 0.0, 1.0, 1000)))
