@@ -172,23 +172,25 @@ def _approximate_cdf(x, alpha, beta):
 
 def _make_data_file():
     """ Generates the lookup table, writes it to a .py file. """
-    import base64
 
     size = (200, 50, 51)
-    pdf = np.zeros(size, 'float64')
-    cdf = np.zeros(size, 'float64')
     xs, alphas, betas = [np.linspace(_lower[i], _upper[i], size[i], endpoint=True) for i in range(len(size))]
 
+    pdf = np.zeros(size, 'float64')
     print("Generating levy_data.py ...")
     for i, alpha in enumerate(alphas):
         for j, beta in enumerate(betas):
             print("Calculating alpha={}, beta={}".format(alpha, beta))
             for k, x in enumerate(xs):
                 pdf[k, i, j] = _levy_tan(x, alpha, beta)
-                cdf[k, i, j] = _levy_tan(x, alpha, beta, True)
-
-
     np.savez('pdf.npz', pdf)
+
+    cdf = np.zeros(size, 'float64')
+    for i, alpha in enumerate(alphas):
+        for j, beta in enumerate(betas):
+            print("Calculating alpha={}, beta={}".format(alpha, beta))
+            for k, x in enumerate(xs):
+                cdf[k, i, j] = _levy_tan(x, alpha, beta, True)
     np.savez('cdf.npz', cdf)
 
 
