@@ -28,8 +28,8 @@ Does not support alpha values less than 0.5.
 
 import sys
 import numpy as np
-import scipy.special as sp
-from future.builtins import range
+from scipy.special import gamma
+from builtins import range
 
 __version__ = "0.6"
 
@@ -177,7 +177,7 @@ def _calculate_levy(x, alpha, beta, cdf=False):
 
 def _approximate(x, alpha, beta, cdf=False):
     mask = (x > 0)
-    values = np.sin(np.pi * alpha / 2.0) * sp.gamma(alpha) / np.pi * np.power(np.abs(x), -alpha - 1.0)
+    values = np.sin(np.pi * alpha / 2.0) * gamma(alpha) / np.pi * np.power(np.abs(x), -alpha - 1.0)
     values[mask] *= (1.0 + beta)
     values[~mask] *= (1.0 - beta)
     if cdf:
@@ -206,82 +206,6 @@ def _make_dist_data_file():
             print("Calculating alpha={:.2f}, beta={:.2f}".format(alpha, beta))
             cdf[:, i, j] = [_calculate_levy(t, alpha, beta, True) for t in ts]
     np.savez('cdf.npz', cdf)
-
-
-
-
-    # for i, alpha in enumerate(alphas):
-    #     for j, beta in enumerate(betas):
-    #         print("Calculating alpha={:.2f}, beta={:.2f}".format(alpha, beta))
-    #         # if beta > 0.0:
-    #         #     f.write('s\n')
-    #         # else:
-    #         #     l = [_calculate_levy(t, alpha, beta, False) for t in ts]
-    #         #     print(getsizeof(l))
-    #         #     f = open('temp_pdf', 'a')
-    #         #     f.write('\t'.join(map(str, l))+'\n')
-    #         #     f.close()
-    #         #     del l
-    #         pdf[:, i, j] = [_calculate_levy(t, alpha, beta, False) for t in ts]
-    #         # for k, t in enumerate(ts):
-    #         #     pdf[k, i, j] = _calculate_levy(t, alpha, beta, False)
-    #
-    # # pdf = np.zeros(size, 'float64')
-    # # i = 0
-    # # j = 0
-    # # with open('temp_pdf', 'r') as f:
-    # #     for line in f:
-    # #         if line.rstrip('\n') == 's':
-    # #             l = np.flip(pdf[:, i, size[2] - 1 - j], 0)
-    # #         else:
-    # #             l = list(map(float, line.rstrip('\n').split('\t')))
-    # #         pdf[:, i, j] = l
-    # #         j += 1
-    # #         if i == len(betas):
-    # #             j = 0
-    # #             i += 1
-    # np.savez('pdf.npz', pdf)
-    # # exit()
-    #
-    # del pdf
-    #
-    # print("Generating levy_data.py ...")
-    # # f = open('temp_cdf', 'a')
-    # cdf = np.zeros(size, 'float64')
-    # for i, alpha in enumerate(alphas):
-    #     for j, beta in enumerate(betas):
-    #         print("Calculating alpha={:.2f}, beta={:.2f}".format(alpha, beta))
-    #         # if beta > 0.0:
-    #         #     f.write('s\n')
-    #         # else:
-    #         #     l = [_calculate_levy(np.tan(x), alpha, beta, True) for x in xs]
-    #         #     f.write('\t'.join(l)+'\n')
-    #         cdf[:, i, j] = [_calculate_levy(t, alpha, beta, False) for t in ts]
-    #         # for k, x in enumerate(xs):
-    #         #     pdf[k, i, j] = _calculate_levy(np.tan(x), alpha, beta, False)
-    # # f.close()
-    #
-    # # i = 0
-    # # j = 0
-    # # with open('temp_cdf', 'r') as f:
-    # #     for line in f:
-    # #         pdf[:, i, j] = list(map(float, line.rstrip('\n').split('\t')))
-    # #         j += 1
-    # #         if i == len(betas):
-    # #             j = 0
-    # #             i += 1
-    # np.savez('cdf.npz', cdf)
-    #
-    # del cdf
-
-    # cdf = np.zeros(size, 'float64')
-    # for i, alpha in enumerate(alphas):
-    #     for j, beta in enumerate(betas):
-    #         print("Calculating alpha={:.2f}, beta={:.2f}".format(alpha, beta))
-    #         # cdf[:, i, j] = _calculate_levy(np.tan(xs), alpha, beta, True)
-    #         for k, x in enumerate(xs):
-    #             cdf[k, i, j] = _calculate_levy(np.tan(x), alpha, beta, True)
-    # np.savez('cdf.npz', cdf)
 
 
 def _int_levy(x, alpha, beta, cdf=False):
@@ -314,13 +238,10 @@ def _get_closest_approx(alpha, beta):
 
 
 def _make_limit_data_file():
-    # size = (50, 51)
     limits = np.zeros(size[1:], 'float64')
     alphas, betas = [np.linspace(_lower[i], _upper[i], size[i], endpoint=True) for i in [1, 2]]
 
     print("Generating levy_approx_data.py ...")
-    # print(alphas)
-    # print(betas)
 
     for i, alpha in enumerate(alphas):
         for j, beta in enumerate(betas):
