@@ -8,6 +8,8 @@ are returned.
 
 import levy
 import numpy as np
+from builtins import range
+# from matplotlib import pyplot
 
 
 def get_quantiles(l):
@@ -28,14 +30,14 @@ for _ in range(n_iter):
     parameters = levy.fit_levy(data)
     parameters_list.append(parameters)
     if _ % 20 == 0:
-        print _
+        print(_)
 
 alphas = sorted([_[0] for _ in parameters_list])
 betas = sorted([_[1] for _ in parameters_list])
 mus = sorted([_[2] for _ in parameters_list])
 sigmas = sorted([_[3] for _ in parameters_list])
 
-print get_quantiles(alphas)
-print get_quantiles(betas)
-print get_quantiles(mus)
-print get_quantiles(sigmas)
+print(get_quantiles(alphas))
+print(get_quantiles(betas))
+print(get_quantiles(mus))
+print(get_quantiles(sigmas))
