@@ -29,7 +29,7 @@ Does not support alpha values less than 0.5.
 import sys
 import numpy as np
 import scipy.special as sp
-from builtins import range
+from future.builtins import range
 
 __version__ = "0.6"
 
