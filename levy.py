@@ -191,72 +191,88 @@ def _make_dist_data_file():
 
     xs, alphas, betas = [np.linspace(_lower[i], _upper[i], size[i], endpoint=True) for i in [0, 1, 2]]
     ts = np.tan(xs)
-    from sys import getsizeof
     print("Generating levy_data.py ...")
+
     pdf = np.zeros(size, 'float64')
     for i, alpha in enumerate(alphas):
         for j, beta in enumerate(betas):
             print("Calculating alpha={:.2f}, beta={:.2f}".format(alpha, beta))
-            # if beta > 0.0:
-            #     f.write('s\n')
-            # else:
-            #     l = [_calculate_levy(t, alpha, beta, False) for t in ts]
-            #     print(getsizeof(l))
-            #     f = open('temp_pdf', 'a')
-            #     f.write('\t'.join(map(str, l))+'\n')
-            #     f.close()
-            #     del l
             pdf[:, i, j] = [_calculate_levy(t, alpha, beta, False) for t in ts]
-            # for k, t in enumerate(ts):
-            #     pdf[k, i, j] = _calculate_levy(t, alpha, beta, False)
-
-    # pdf = np.zeros(size, 'float64')
-    # i = 0
-    # j = 0
-    # with open('temp_pdf', 'r') as f:
-    #     for line in f:
-    #         if line.rstrip('\n') == 's':
-    #             l = np.flip(pdf[:, i, size[2] - 1 - j], 0)
-    #         else:
-    #             l = list(map(float, line.rstrip('\n').split('\t')))
-    #         pdf[:, i, j] = l
-    #         j += 1
-    #         if i == len(betas):
-    #             j = 0
-    #             i += 1
     np.savez('pdf.npz', pdf)
-    # exit()
 
-    del pdf
-
-    print("Generating levy_data.py ...")
-    # f = open('temp_cdf', 'a')
     cdf = np.zeros(size, 'float64')
     for i, alpha in enumerate(alphas):
         for j, beta in enumerate(betas):
             print("Calculating alpha={:.2f}, beta={:.2f}".format(alpha, beta))
-            # if beta > 0.0:
-            #     f.write('s\n')
-            # else:
-            #     l = [_calculate_levy(np.tan(x), alpha, beta, True) for x in xs]
-            #     f.write('\t'.join(l)+'\n')
-            cdf[:, i, j] = [_calculate_levy(t, alpha, beta, False) for t in ts]
-            # for k, x in enumerate(xs):
-            #     pdf[k, i, j] = _calculate_levy(np.tan(x), alpha, beta, False)
-    # f.close()
-
-    # i = 0
-    # j = 0
-    # with open('temp_cdf', 'r') as f:
-    #     for line in f:
-    #         pdf[:, i, j] = list(map(float, line.rstrip('\n').split('\t')))
-    #         j += 1
-    #         if i == len(betas):
-    #             j = 0
-    #             i += 1
+            cdf[:, i, j] = [_calculate_levy(t, alpha, beta, True) for t in ts]
     np.savez('cdf.npz', cdf)
 
-    del cdf
+
+
+
+    # for i, alpha in enumerate(alphas):
+    #     for j, beta in enumerate(betas):
+    #         print("Calculating alpha={:.2f}, beta={:.2f}".format(alpha, beta))
+    #         # if beta > 0.0:
+    #         #     f.write('s\n')
+    #         # else:
+    #         #     l = [_calculate_levy(t, alpha, beta, False) for t in ts]
+    #         #     print(getsizeof(l))
+    #         #     f = open('temp_pdf', 'a')
+    #         #     f.write('\t'.join(map(str, l))+'\n')
+    #         #     f.close()
+    #         #     del l
+    #         pdf[:, i, j] = [_calculate_levy(t, alpha, beta, False) for t in ts]
+    #         # for k, t in enumerate(ts):
+    #         #     pdf[k, i, j] = _calculate_levy(t, alpha, beta, False)
+    #
+    # # pdf = np.zeros(size, 'float64')
+    # # i = 0
+    # # j = 0
+    # # with open('temp_pdf', 'r') as f:
+    # #     for line in f:
+    # #         if line.rstrip('\n') == 's':
+    # #             l = np.flip(pdf[:, i, size[2] - 1 - j], 0)
+    # #         else:
+    # #             l = list(map(float, line.rstrip('\n').split('\t')))
+    # #         pdf[:, i, j] = l
+    # #         j += 1
+    # #         if i == len(betas):
+    # #             j = 0
+    # #             i += 1
+    # np.savez('pdf.npz', pdf)
+    # # exit()
+    #
+    # del pdf
+    #
+    # print("Generating levy_data.py ...")
+    # # f = open('temp_cdf', 'a')
+    # cdf = np.zeros(size, 'float64')
+    # for i, alpha in enumerate(alphas):
+    #     for j, beta in enumerate(betas):
+    #         print("Calculating alpha={:.2f}, beta={:.2f}".format(alpha, beta))
+    #         # if beta > 0.0:
+    #         #     f.write('s\n')
+    #         # else:
+    #         #     l = [_calculate_levy(np.tan(x), alpha, beta, True) for x in xs]
+    #         #     f.write('\t'.join(l)+'\n')
+    #         cdf[:, i, j] = [_calculate_levy(t, alpha, beta, False) for t in ts]
+    #         # for k, x in enumerate(xs):
+    #         #     pdf[k, i, j] = _calculate_levy(np.tan(x), alpha, beta, False)
+    # # f.close()
+    #
+    # # i = 0
+    # # j = 0
+    # # with open('temp_cdf', 'r') as f:
+    # #     for line in f:
+    # #         pdf[:, i, j] = list(map(float, line.rstrip('\n').split('\t')))
+    # #         j += 1
+    # #         if i == len(betas):
+    # #             j = 0
+    # #             i += 1
+    # np.savez('cdf.npz', cdf)
+    #
+    # del cdf
 
     # cdf = np.zeros(size, 'float64')
     # for i, alpha in enumerate(alphas):
