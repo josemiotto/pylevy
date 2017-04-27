@@ -39,7 +39,7 @@ size = (200, 76, 101)  # size of the grid (xs, alpha, beta)
 _lower = np.array([-np.pi / 2 * 0.999, 0.5, -1.0])  # lower limit of parameters
 _upper = np.array([np.pi / 2 * 0.999, 2.0, 1.0])  # upper limit of parameters
 
-par_bounds = ((_lower[1], _upper[1]), (_lower[2], _upper[2]), (None, None), (1e-6, None))  # parameter bounds for fit.
+par_bounds = ((_lower[1], _upper[1]), (_lower[2], _upper[2]), (None, None), (1e-6, 1e10))  # parameter bounds for fit.
 par_names = ['alpha', 'beta', 'mu', 'sigma']  # names of the parameters
 default = [1.5, 0.0, 0.0, 1.0]  # default values of the parameters for fit.
 default = {par_names[i]: default[i] for i in range(4)}
@@ -48,7 +48,7 @@ f_bounds = {
     'alpha': lambda x: _reflect(x, *par_bounds[0]),
     'beta': lambda x: _reflect(x, *par_bounds[1]),
     'mu': lambda x: x,
-    'sigma': lambda x: _reflect(x, *par_bounds[2])
+    'sigma': lambda x: _reflect(x, *par_bounds[3])
 }
 
 
