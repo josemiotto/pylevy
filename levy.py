@@ -14,24 +14,31 @@
 #    along with this program; if not, write to the Free Software
 #    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
+# 2017-08-31 Paul Kienzle
+# - cache tables so repeated calls are faster
+# - support scalar and vector inputs
+# - code linting
+
 """
 This is a package for calculation of Levy stable distributions
 (probability density function and cumulative density function) and for
 fitting these distributions to data.
 
-It operates by interpolating values from a table, as direct computation 
+It operates by interpolating values from a table, as direct computation
 of these distributions requires a lengthy numerical integration. This
 interpolation scheme allows fast fitting of data by Maximum Likelihood .
 
 Does not support alpha values less than 0.5.
 """
 
+from __future__ import print_function, division
+
 import sys
+import os
 import numpy as np
 from scipy.special import gamma
-from builtins import range
 
-__version__ = "0.6"
+__version__ = "0.7"
 
 # Some constants of the program.
 # Dimensions: 0 - x, 1 - alpha, 2 - beta
@@ -51,6 +58,28 @@ f_bounds = {
     'sigma': lambda x: _reflect(x, *par_bounds[3])
 }
 
+ROOT = os.path.dirname(os.path.abspath(__file__))
+_data_cache = {}
+def _cdf():
+    try:
+        return _data_cache['cdf']
+    except KeyError:
+        _data_cache['cdf'] = np.load(os.path.join(ROOT, 'cdf.npz'))['arr_0']
+        return _data_cache['cdf']
+
+def _pdf():
+    try:
+        return _data_cache['pdf']
+    except KeyError:
+        _data_cache['pdf'] = np.load(os.path.join(ROOT, 'pdf.npz'))['arr_0']
+        return _data_cache['pdf']
+
+def _limits():
+    try:
+        return _data_cache['limits']
+    except KeyError:
+        _data_cache['limits'] = np.load(os.path.join(ROOT, 'limits.npz'))['arr_0']
+        return _data_cache['limits']
 
 def _reflect(x, lower, upper):
     """ Makes the parameters to be inside the bounds """
@@ -101,8 +130,9 @@ def _interpolate(points, grid, lower, upper):
 
 
 class Parameters(object):
-    """ This class is a wrap for the parameters;
-    it works such that if we fit fixing one or more parameters, the optimization only acts on the other.
+    """
+    This class is a wrap for the parameters; it works such that if we fit
+    fixing one or more parameters, the optimization only acts on the other.
     The key thing here is the setter.
     """
 
@@ -137,12 +167,13 @@ def _phi(alpha, beta):
 
 
 def _calculate_levy(x, alpha, beta, cdf=False):
-    """ Calculation of Levy stable distribution via numerical integration.
-        This is used in the creation of the lookup table.
-        Notice that to compute it in a 'true' x, the tangent must be applied.
-        Example: levy(2, 1.5, 0) = _calculate_levy(np.tan(2), 1.5, 0)
-        "0" parameterization as per http://academic2.americanp.edu/~jpnolan/stable/stable.html
-        Note: fails for alpha=1.0 (so make sure alpha=1.0 isn't exactly on the interpolation grid)
+    """
+    Calculation of Levy stable distribution via numerical integration.
+    This is used in the creation of the lookup table.
+    Notice that to compute it in a 'true' x, the tangent must be applied.
+    Example: levy(2, 1.5, 0) = _calculate_levy(np.tan(2), 1.5, 0)
+    "0" parameterization as per http://academic2.americanp.edu/~jpnolan/stable/stable.html
+    Note: fails for alpha=1.0 (so make sure alpha=1.0 isn't exactly on the interpolation grid)
     """
     from scipy import integrate
 
@@ -198,32 +229,30 @@ def _make_dist_data_file():
         for j, beta in enumerate(betas):
             print("Calculating alpha={:.2f}, beta={:.2f}".format(alpha, beta))
             pdf[:, i, j] = [_calculate_levy(t, alpha, beta, False) for t in ts]
-    np.savez('pdf.npz', pdf)
+    np.savez(os.path.join(ROOT, 'pdf.npz'), pdf)
 
     cdf = np.zeros(size, 'float64')
     for i, alpha in enumerate(alphas):
         for j, beta in enumerate(betas):
             print("Calculating alpha={:.2f}, beta={:.2f}".format(alpha, beta))
             cdf[:, i, j] = [_calculate_levy(t, alpha, beta, True) for t in ts]
-    np.savez('cdf.npz', cdf)
+    np.savez(os.path.join(ROOT, 'cdf.npz'), cdf)
 
 
 def _int_levy(x, alpha, beta, cdf=False):
-    """ Interpolate densities of the Levy stable distribution specified by alpha and beta.
+    """
+    Interpolate densities of the Levy stable distribution specified by alpha and beta.
 
-        Specify cdf=True to obtain the *cumulative* density function.
+    Specify cdf=True to obtain the *cumulative* density function.
 
-        Note: may sometimes return slightly negative values, due to numerical inaccuracies.
+    Note: may sometimes return slightly negative values, due to numerical inaccuracies.
     """
     points = np.empty(np.shape(x) + (3,), 'float64')
     points[..., 0] = np.arctan(x)
     points[..., 1] = alpha
     points[..., 2] = np.abs(beta)
 
-    if cdf:
-        what = np.load('cdf.npz')['arr_0']
-    else:
-        what = np.load('pdf.npz')['arr_0']
+    what = _cdf() if cdf else _pdf()
     return _interpolate(points, what, _lower, _upper)
 
 
@@ -248,7 +277,7 @@ def _make_limit_data_file():
             limits[i, j] = _get_closest_approx(alpha, beta)
             print("Calculating alpha={:.2f}, beta={:.2f}, limit={:.2f}".format(alpha, beta, limits[i, j]))
 
-    np.savez('limits.npz', limits)
+    np.savez(os.path.join(ROOT, 'limits.npz'), limits)
 
 
 def change_par(alpha, beta, mu, sigma, par_input, par_output):
@@ -263,19 +292,24 @@ def change_par(alpha, beta, mu, sigma, par_input, par_output):
 def levy(x, alpha, beta, mu=0.0, sigma=1.0, cdf=False, par=0):
     """
     Levy with the tail replaced by the analytical approximation.
-    Also, mu, sigma are parameters that shift and rescale the distribution.
+
+    *alpha* in (0, 2] is the index of stability, or characteristic exponent.
+    *beta* in [-1, 1] is the skewness. *mu* in real and *sigma* >= 0 are the
+    center and scale of the distribution (corresponding to *delta* and *gamma*
+    in Nolan's notation; note that sigma in levy corresponds to sqrt(2) sigma
+    in the normal distribution).
+
     Parametrization can be chosen according to Nolan, par={0,1}.
+
+    See: http://fs2.american.edu/jpnolan/www/stable/stable.html
     """
 
     loc = change_par(alpha, beta, mu, sigma, par, 0)
 
-    if cdf:
-        what = np.load('cdf.npz')['arr_0']
-    else:
-        what = np.load('pdf.npz')['arr_0']
-    limits = np.load('limits.npz')['arr_0']
+    what = _cdf() if cdf else _pdf()
+    limits = _limits()
 
-    xr = (x - loc) / sigma
+    xr = (np.asarray(x, 'd') - loc) / sigma
     alpha_index = int((alpha -_lower[1]) / (_upper[1] - _lower[1]) * (size[1] - 1))
     beta_index = int((beta - _lower[2]) / (_upper[2] - _lower[2]) * (size[2] - 1))
     try:
@@ -300,39 +334,43 @@ def levy(x, alpha, beta, mu=0.0, sigma=1.0, cdf=False, par=0):
     res[~mask] = approximated
     if cdf is False:
         res /= sigma
-    return res
+    return float(res) if np.isscalar(x) else res
 
 
 def neglog_levy(x, alpha, beta, mu, sigma, par=0):
     """
-    Interpolate negative log densities of the Levy stable distribution specified by alpha and beta.
-    Small/negative densities are capped at 1e-100 to preserve sanity.
+    Interpolate negative log densities of the Levy stable distribution
+    specified by alpha and beta. Small/negative densities are capped
+    at 1e-100 to preserve sanity.
     """
     return -np.log(np.maximum(1e-100, levy(x, alpha, beta, mu, sigma, par=par)))
 
 
 def fit_levy(x, alpha=None, beta=None, mu=None, sigma=None, par=0):
     """
-    Estimate parameters of Levy stable distribution given data x, using the Maximum Likelihood method.
+    Estimate parameters of Levy stable distribution given data x, using
+    the Maximum Likelihood method.
 
-    By default, searches all possible Levy stable distributions.
-    However you may restrict the search by specifying the values of one or more parameters.
-    Parametrization can be chosen according to Nolan, par={0,1}.
-        
+    By default, searches all possible Levy stable distributions. However
+    you may restrict the search by specifying the values of one or more
+    parameters. Parametrization can be chosen according to Nolan, par={0,1}.
+
     Examples:
-        
+
         levy(x) -- Fit a stable distribution to x
 
         levy(x, beta=0.0) -- Fit a symmetric stable distribution to x
 
-        levy(x, beta=0.0, mu=0.0) -- Fit a symmetric distribution centered on zero to x
+        levy(x, beta=0.0, mu=0.0) -- Fit a symmetric distribution
+        centered on zero to x
 
         levy(x, alpha=1.0, beta=0.0) -- Fit a Cauchy distribution to x
 
     Returns a tuple of (alpha, beta, mu, sigma, negative log density)
     """
 
-    # The parametrization is changed to par=0. At the end, the parametrization will change to par.
+    # The parametrization is changed to par=0. At the end, the
+    # parametrization will change to par.
     if mu is not None:
         loc = change_par(alpha, beta, mu, sigma, par, 0)
     elif mu is None:
@@ -351,7 +389,8 @@ def fit_levy(x, alpha=None, beta=None, mu=None, sigma=None, par=0):
         return np.sum(neglog_levy(x, alpha, beta, mu, sigma))
 
     # parameters.x = optimize.fmin(neglog_density, parameters.x, disp=0)
-    parameters.x = optimize.minimize(neglog_density, parameters.x, method='L-BFGS-B', bounds=par_bounds)
+    parameters.x = optimize.minimize(neglog_density, parameters.x,
+                                     method='L-BFGS-B', bounds=par_bounds)
     alpha, beta, loc, sigma = parameters.get_all()
     mu = change_par(alpha, beta, loc, sigma, 0, par)
 
@@ -369,7 +408,7 @@ def random(alpha, beta, mu=0.0, sigma=1.0, shape=(), par=0):
         return np.random.standard_normal(shape) * np.sqrt(2.0)
 
     # Fails for alpha exactly equal to 1.0
-    # but works fine for alpha infinitesimally greater or less than 1.0    
+    # but works fine for alpha infinitesimally greater or less than 1.0
     radius = 1e-15  # <<< this number is *very* small
     if np.absolute(alpha - 1.0) < radius:
         # So doing this will make almost exactly no difference at all
@@ -400,6 +439,7 @@ if __name__ == "__main__":
 
     print("Testing fit_levy.")
 
-    print("1000 points, result should be (1.5, 0.5, 0.0, 1.0).")
+    N = 1000
+    print("{} points, result should be (1.5, 0.5, 0.0, 1.0).".format(N))
     result = fit_levy(random(1.5, 0.5, 0.0, 1.0, 1000))
     print('alpha={:.2f}, beta={:.2f}, mu_0={:.2f}, sigma={:.2f}, neglog={:.2f}'.format(*result))
