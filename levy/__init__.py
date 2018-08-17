@@ -37,8 +37,9 @@ import sys
 import os
 import numpy as np
 from scipy.special import gamma
+from scipy import optimize
 
-__version__ = "0.7"
+__version__ = "0.8"
 
 # Some constants of the program.
 # Dimensions: 0 - x, 1 - alpha, 2 - beta
@@ -60,12 +61,15 @@ f_bounds = {
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 _data_cache = {}
+
+
 def _cdf():
     try:
         return _data_cache['cdf']
     except KeyError:
         _data_cache['cdf'] = np.load(os.path.join(ROOT, 'cdf.npz'))['arr_0']
         return _data_cache['cdf']
+
 
 def _pdf():
     try:
@@ -74,12 +78,14 @@ def _pdf():
         _data_cache['pdf'] = np.load(os.path.join(ROOT, 'pdf.npz'))['arr_0']
         return _data_cache['pdf']
 
+
 def _limits():
     try:
         return _data_cache['limits']
     except KeyError:
         _data_cache['limits'] = np.load(os.path.join(ROOT, 'limits.npz'))['arr_0']
         return _data_cache['limits']
+
 
 def _reflect(x, lower, upper):
     """ Makes the parameters to be inside the bounds """
@@ -281,6 +287,11 @@ def _make_limit_data_file():
 
 
 def change_par(alpha, beta, mu, sigma, par_input, par_output):
+    """
+    Change parametrization values from parametrization 'par_input' to
+    parametrization 'par_output".
+    """
+
     if par_input == par_output:
         return mu
     elif (par_input == 0) and (par_output == 1):
@@ -376,8 +387,6 @@ def fit_levy(x, alpha=None, beta=None, mu=None, sigma=None, par=0):
     elif mu is None:
         loc = mu
 
-    from scipy import optimize
-
     kwargs = {'alpha': alpha, 'beta': beta, 'mu': loc, 'sigma': sigma}
     parameters = Parameters(**kwargs)
 
@@ -388,9 +397,8 @@ def fit_levy(x, alpha=None, beta=None, mu=None, sigma=None, par=0):
         alpha, beta, mu, sigma = p
         return np.sum(neglog_levy(x, alpha, beta, mu, sigma))
 
-    # parameters.x = optimize.fmin(neglog_density, parameters.x, disp=0)
-    parameters.x = optimize.minimize(neglog_density, parameters.x,
-                                     method='L-BFGS-B', bounds=par_bounds)
+    bounds = tuple(par_bounds[i] for i in parameters.variables)
+    parameters.x = optimize.minimize(neglog_density, parameters.x, method='L-BFGS-B', bounds=bounds)
     alpha, beta, loc, sigma = parameters.get_all()
     mu = change_par(alpha, beta, loc, sigma, 0, par)
 
