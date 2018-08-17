@@ -288,11 +288,10 @@ def _make_limit_data_file():
 
 def change_par(alpha, beta, mu, sigma, par_input, par_output):
     """
-    change_par
-    ============================
     Change parametrization values from parametrization 'par_input' to
     parametrization 'par_output".
     """
+
     if par_input == par_output:
         return mu
     elif (par_input == 0) and (par_output == 1):
@@ -303,8 +302,6 @@ def change_par(alpha, beta, mu, sigma, par_input, par_output):
 
 def levy(x, alpha, beta, mu=0.0, sigma=1.0, cdf=False, par=0):
     """
-    levy
-    ============================
     Levy with the tail replaced by the analytical approximation.
 
     *alpha* in (0, 2] is the index of stability, or characteristic exponent.
@@ -353,8 +350,6 @@ def levy(x, alpha, beta, mu=0.0, sigma=1.0, cdf=False, par=0):
 
 def neglog_levy(x, alpha, beta, mu, sigma, par=0):
     """
-    neglog_levy
-    ============================
     Interpolate negative log densities of the Levy stable distribution
     specified by alpha and beta. Small/negative densities are capped
     at 1e-100 to preserve sanity.
@@ -364,8 +359,6 @@ def neglog_levy(x, alpha, beta, mu, sigma, par=0):
 
 def fit_levy(x, alpha=None, beta=None, mu=None, sigma=None, par=0):
     """
-    fit_levy
-    ============================
     Estimate parameters of Levy stable distribution given data x, using
     the Maximum Likelihood method.
 
@@ -414,8 +407,6 @@ def fit_levy(x, alpha=None, beta=None, mu=None, sigma=None, par=0):
 
 def random(alpha, beta, mu=0.0, sigma=1.0, shape=(), par=0):
     """
-    random
-    ============================
     Generate random values sampled from an alpha-stable distribution.
     Parametrization can be chosen according to Nolan, par={0,1}.
     """
