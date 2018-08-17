@@ -288,8 +288,27 @@ def _make_limit_data_file():
 
 def change_par(alpha, beta, mu, sigma, par_input, par_output):
     """
-    Change parametrization values from parametrization 'par_input' to
-    parametrization 'par_output".
+    Returns mu in the parametrization 'par_output', from the
+    parametrization 'par_input".
+
+    Example:
+        >>> change_par(1.8, 1, 0, 1, 1, 0)
+        -0.32491969623290645
+
+    :param alpha: alpha
+    :type alpha: float
+    :param beta: beta
+    :type beta: float
+    :param mu: mu
+    :type mu: float
+    :param sigma: sigma
+    :type sigma: float
+    :param par_input: par_input
+    :type par_input: int
+    :param par_output: par_output
+    :type par_output: int
+    :return: value of mu in the par_output parametrization
+    :rtype: float
     """
 
     if par_input == par_output:
@@ -313,6 +332,28 @@ def levy(x, alpha, beta, mu=0.0, sigma=1.0, cdf=False, par=0):
     Parametrization can be chosen according to Nolan, par={0,1}.
 
     See: http://fs2.american.edu/jpnolan/www/stable/stable.html
+
+    Example:
+        >>> x = np.array([1, 2, 3])
+        >>> levy(x, 1.5, 0, cdf=True)
+        array([0.20203811, 0.08453908, 0.03150926])
+
+    :param x: values where the function is evaluated
+    :type x: :class:`~numpy.ndarray`
+    :param alpha: alpha
+    :type alpha: float
+    :param beta: beta
+    :type beta: float
+    :param mu: mu
+    :type mu: float
+    :param sigma: sigma
+    :type sigma: float
+    :param cdf: it specifies if you want the cdf instead of the pdf
+    :type cdf: bool
+    :param par: parametrization
+    :type par: int
+    :return: values of the pdf (or cdf if parameter 'cdf' is set to True) at 'x'
+    :rtype: :class:`~numpy.ndarray`
     """
 
     loc = change_par(alpha, beta, mu, sigma, par, 0)
@@ -353,7 +394,28 @@ def neglog_levy(x, alpha, beta, mu, sigma, par=0):
     Interpolate negative log densities of the Levy stable distribution
     specified by alpha and beta. Small/negative densities are capped
     at 1e-100 to preserve sanity.
+
+    Example:
+        >>> x = np.array([1,2,3])
+        >>> neglog_levy(x, 1.5, 0.0, 0.0, 1.0)
+        array([1.59929892, 2.47054131, 3.45747366])
+
+    :param x: values where the function is evaluated
+    :type x: :class:`~numpy.ndarray`
+    :param alpha: alpha
+    :type alpha: float
+    :param beta: beta
+    :type beta: float
+    :param mu: mu
+    :type mu: float
+    :param sigma: sigma
+    :type sigma: float
+    :param par: parametrization
+    :type par: int
+    :return: values of -log(pdf(x))
+    :rtype: :class:`~numpy.ndarray`
     """
+
     return -np.log(np.maximum(1e-100, levy(x, alpha, beta, mu, sigma, par=par)))
 
 
@@ -367,17 +429,36 @@ def fit_levy(x, alpha=None, beta=None, mu=None, sigma=None, par=0):
     parameters. Parametrization can be chosen according to Nolan, par={0,1}.
 
     Examples:
+        >>> np.random.seed(0)
+        >>> x = random(1.5, 0, 0, 1, shape=200)
+        >>> fit_levy(x) # -- Fit a stable distribution to x
+        (1.523332454855073, -0.08374679328809703, 0.05006400708816064, 0.9850660292714712, 402.44279062026806)
 
-        levy(x) -- Fit a stable distribution to x
+        >>> fit_levy(x, beta=0.0) # -- Fit a symmetric stable distribution to x
+        (1.5275585459739105, 0.0, 0.028412901208016147, 0.9874304715515858, 402.5204574692911)
 
-        levy(x, beta=0.0) -- Fit a symmetric stable distribution to x
+        >>> fit_levy(x, beta=0.0, mu=0.0) # -- Fit a symmetric distribution centered on zero to x
+        (1.5292748496827586, 0.0, 0.0, 0.98865238323717, 402.55578262026063)
 
-        levy(x, beta=0.0, mu=0.0) -- Fit a symmetric distribution
-        centered on zero to x
-
-        levy(x, alpha=1.0, beta=0.0) -- Fit a Cauchy distribution to x
+        >>> fit_levy(x, alpha=1.0, beta=0.0) # -- Fit a Cauchy distribution to x
+        (1.0, 0.0, 0.10120172254704864, 0.9014243199508114, 416.5364751270402)
 
     Returns a tuple of (alpha, beta, mu, sigma, negative log density)
+
+    :param x: values to be fitted
+    :type x: :class:`~numpy.ndarray`
+    :param alpha: alpha
+    :type alpha: float
+    :param beta: beta
+    :type beta: float
+    :param mu: mu
+    :type mu: float
+    :param sigma: sigma
+    :type sigma: float
+    :param par: parametrization
+    :type par: int
+    :return: estimated parameters
+    :rtype: :class:`~numpy.ndarray`
     """
 
     # The parametrization is changed to par=0. At the end, the
@@ -409,6 +490,24 @@ def random(alpha, beta, mu=0.0, sigma=1.0, shape=(), par=0):
     """
     Generate random values sampled from an alpha-stable distribution.
     Parametrization can be chosen according to Nolan, par={0,1}.
+
+    Example:
+        >>> x = random(1.5, 0, shape=100, par=0)
+
+    :param alpha: alpha
+    :type alpha: float
+    :param beta: beta
+    :type beta: float
+    :param mu: mu
+    :type mu: float
+    :param sigma: sigma
+    :type sigma: float
+    :param shape: shape (numpy array type) of the resulting array
+    :type shape: tuple
+    :param par: parametrization
+    :type par: int
+    :return: generated random values
+    :rtype: :class:`~numpy.ndarray`
     """
 
     loc = change_par(alpha, beta, mu, sigma, par, 0)
