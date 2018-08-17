@@ -350,8 +350,10 @@ def fit_levy(x, alpha=None, beta=None, mu=None, sigma=None, par=0):
         alpha, beta, mu, sigma = p
         return np.sum(neglog_levy(x, alpha, beta, mu, sigma))
 
+    bounds = tuple(par_bounds[i] for i in parameters.variables)
+    print(bounds)
     # parameters.x = optimize.fmin(neglog_density, parameters.x, disp=0)
-    parameters.x = optimize.minimize(neglog_density, parameters.x, method='L-BFGS-B', bounds=par_bounds)
+    parameters.x = optimize.minimize(neglog_density, parameters.x, method='L-BFGS-B', bounds=bounds)
     alpha, beta, loc, sigma = parameters.get_all()
     mu = change_par(alpha, beta, loc, sigma, 0, par)
 
