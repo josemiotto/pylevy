@@ -11,6 +11,7 @@ setup(name='PyLevy',
       license='GPL',
       description='A package for calculating and fitting Levy stable distributions.',
       long_description=levy.__doc__,
-      py_modules=['levy', 'levy_data', 'levy_approx_data'],
-      options={'sdist': {'force_manifest': True}}
-      )
+      packages=['levy'],
+      package_data={'levy': ['cdf.npz', 'pdf.npz', 'limits.npz']},
+      options={'sdist': {'force_manifest': True}},
+     )

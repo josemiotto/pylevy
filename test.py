@@ -27,7 +27,8 @@ n_data = 1000
 parameters_list = []
 for _ in range(n_iter):
     data = levy.random(alpha, 0.0, 0.0, 1.0, n_data)
-    parameters = levy.fit_levy(data)
+    parameters = levy.fit_levy(data, beta=0.0)
+    print(parameters)
     parameters_list.append(parameters)
     if _ % 20 == 0:
         print(_)
