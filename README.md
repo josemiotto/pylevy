@@ -6,7 +6,7 @@ To install, type:
 
     python setup.py install
 
-See source code of levy.py for usage.
+For usage, please visit our [documentation](https://pylevy.readthedocs.io/en/latest/index.html).
 
 The package allows to sample random Levy numbers, fit them, and compute the Levy distribution.
 
