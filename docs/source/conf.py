@@ -14,7 +14,7 @@
 #
 import os
 import sys
-from unittest.mock import MagicMock
+import unittest.mock as mock
 sys.path.insert(0, os.path.abspath('../../../'))
 
 # -- Project information -----------------------------------------------------
@@ -45,14 +45,16 @@ extensions = [
 ]
 
 
-class Mock(MagicMock):
-    @classmethod
-    def __getattr__(cls, name):
-        return MagicMock()
+# class Mock(MagicMock):
+#     @classmethod
+#     def __getattr__(cls, name):
+#         return MagicMock()
 
 
 MOCK_MODULES = ['numpy', 'scipy']
-sys.modules.update((mod_name, Mock()) for mod_name in MOCK_MODULES)
+for mod_name in MOCK_MODULES:
+    sys.modules[mod_name] = mock.Mock()
+
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']

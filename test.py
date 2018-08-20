@@ -9,12 +9,12 @@ are returned.
 import levy
 import numpy as np
 from builtins import range
-# from matplotlib import pyplot
 
 
 def get_quantiles(l):
     n = float(len(l))
     return l[int(n * 0.5)], l[int(n * 0.05)], l[int(n * 0.95)]
+
 
 alpha = 1.0
 beta = 0.0

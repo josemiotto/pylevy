@@ -1,7 +1,10 @@
 Module Levy
-==========
+============
 
 .. automodule:: pylevy.levy
+
+Functions
+----------
 
 .. autofunction:: pylevy.levy.change_par
 

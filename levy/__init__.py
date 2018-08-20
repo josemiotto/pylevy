@@ -26,9 +26,9 @@ fitting these distributions to data.
 
 It operates by interpolating values from a table, as direct computation
 of these distributions requires a lengthy numerical integration. This
-interpolation scheme allows fast fitting of data by Maximum Likelihood .
+interpolation scheme allows fast fitting of data by Maximum Likelihood.
 
-Does not support alpha values less than 0.5.
+It does not support alpha values less than 0.5.
 """
 
 from __future__ import print_function, division

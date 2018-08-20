@@ -1,7 +1,6 @@
 # pylevy
 
 ## Levy distributions for Python
-======
 
 To install, type:
 
