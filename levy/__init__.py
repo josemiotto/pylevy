@@ -321,13 +321,14 @@ def change_par(alpha, beta, mu, sigma, par_input, par_output):
 
 def levy(x, alpha, beta, mu=0.0, sigma=1.0, cdf=False, par=0):
     """
-    Levy with the tail replaced by the analytical approximation.
+    Levy distribution with the tail replaced by the analytical (power law) approximation.
 
     *alpha* in (0, 2] is the index of stability, or characteristic exponent.
-    *beta* in [-1, 1] is the skewness. *mu* in real and *sigma* >= 0 are the
+    *beta* in [-1, 1] is the skewness. *mu* in real and *sigma* > 0 are the
     center and scale of the distribution (corresponding to *delta* and *gamma*
     in Nolan's notation; note that sigma in levy corresponds to sqrt(2) sigma
     in the normal distribution).
+    *cdf* is a Boolean that specifies if it returns the cdf instead of the pdf.
 
     Parametrization can be chosen according to Nolan, par={0,1}.
 
@@ -422,7 +423,7 @@ def neglog_levy(x, alpha, beta, mu, sigma, par=0):
 def fit_levy(x, alpha=None, beta=None, mu=None, sigma=None, par=0):
     """
     Estimate parameters of Levy stable distribution given data x, using
-    the Maximum Likelihood method.
+    Maximum Likelihood estimation.
 
     By default, searches all possible Levy stable distributions. However
     you may restrict the search by specifying the values of one or more
