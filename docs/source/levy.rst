@@ -1,12 +1,12 @@
 Module Levy
-==========
+===========
 
-.. automodule:: pylevy.levy
+.. automodule:: levy
 
-.. autofunction:: pylevy.levy.change_par
+.. autofunction:: levy.change_par
 
-.. autofunction:: pylevy.levy.random
+.. autofunction:: levy.random
 
-.. autofunction:: pylevy.levy.levy
+.. autofunction:: levy.levy
 
-.. autofunction:: pylevy.levy.fit_levy
+.. autofunction:: levy.fit_levy
