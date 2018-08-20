@@ -44,18 +44,6 @@ extensions = [
     'sphinx.ext.intersphinx',
 ]
 
-
-# class Mock(MagicMock):
-#     @classmethod
-#     def __getattr__(cls, name):
-#         return MagicMock()
-
-
-MOCK_MODULES = ['numpy', 'scipy']
-for mod_name in MOCK_MODULES:
-    sys.modules[mod_name] = mock.Mock()
-
-
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
 
