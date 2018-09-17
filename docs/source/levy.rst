@@ -3,10 +3,14 @@ Module Levy
 
 .. automodule:: levy
 
+Classes
+---------
+
+.. autoclass:: Parameters
+    :members:
+
 Functions
 ----------
-
-.. autofunction:: levy.change_par
 
 .. autofunction:: levy.random
 

@@ -7,7 +7,6 @@ are returned.
 """
 
 import levy
-import numpy as np
 from builtins import range
 
 

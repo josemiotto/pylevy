@@ -28,7 +28,24 @@ It operates by interpolating values from a table, as direct computation
 of these distributions requires a lengthy numerical integration. This
 interpolation scheme allows fast fitting of data by Maximum Likelihood.
 
-It does not support alpha values less than 0.5.
+Notes on the parameters
+-----------------------
+- the parameters of the Levy stable distribution can be given in multiple ways: parametrizations.
+  Here, you can use both parametrizations 0 and 1, in the notation of Nolan
+  (http://fs2.american.edu/jpnolan/www/stable/stable.html) and
+  parametrizations A, B and M from Zolotarev (Chance and Stability).
+
+- Nolan parametrizations are a bit easier to understand.
+  Parametrization 0 is typically preferred for numerical calculations, and
+  has :math:`E(X)=\\delta_0-\\beta\\gamma\\tan(\\pi\\alpha/2)` while
+  parametrization 1 is preferred for better intuition, since :math:`E(X)=\\delta_1`.
+
+- parametrizations are dealt automatically by the module, you just need
+  to specify which one you want to use. Also, you can use the function
+  Parameters.convert to transform the parameters from one parametrization
+  to another. The module uses internally parametrization 0.
+
+- pylevy does not support alpha values less than 0.5.
 """
 
 from __future__ import print_function, division
@@ -39,7 +56,7 @@ import numpy as np
 from scipy.special import gamma
 from scipy import optimize
 
-__version__ = "0.8"
+__version__ = "0.9"
 
 # Some constants of the program.
 # Dimensions: 0 - x, 1 - alpha, 2 - beta
@@ -48,16 +65,23 @@ _lower = np.array([-np.pi / 2 * 0.999, 0.5, -1.0])  # lower limit of parameters
 _upper = np.array([np.pi / 2 * 0.999, 2.0, 1.0])  # upper limit of parameters
 
 par_bounds = ((_lower[1], _upper[1]), (_lower[2], _upper[2]), (None, None), (1e-6, 1e10))  # parameter bounds for fit.
-par_names = ['alpha', 'beta', 'mu', 'sigma']  # names of the parameters
-default = [1.5, 0.0, 0.0, 1.0]  # default values of the parameters for fit.
-default = {par_names[i]: default[i] for i in range(4)}
-""" f_bounds function only useful if minimizing with fmin """
-f_bounds = {
-    'alpha': lambda x: _reflect(x, *par_bounds[0]),
-    'beta': lambda x: _reflect(x, *par_bounds[1]),
-    'mu': lambda x: x,
-    'sigma': lambda x: _reflect(x, *par_bounds[3])
+par_names = {  # names of the parameters
+    '0': ['alpha', 'beta', 'mu', 'sigma'],
+    '1': ['alpha', 'beta', 'mu', 'sigma'],
+    'M': ['alpha', 'beta', 'gamma', 'lambda'],
+    'A': ['alpha', 'beta', 'gamma', 'lambda'],
+    'B': ['alpha', 'beta', 'gamma', 'lambda']
 }
+default = [1.5, 0.0, 0.0, 1.0]  # default values of the parameters for fit.
+default = {k: {par_names[k][i]: default[i] for i in range(4)} for k in par_names.keys()}
+
+f_bounds = [
+    lambda x: _reflect(x, *par_bounds[0]),
+    lambda x: _reflect(x, *par_bounds[1]),
+    lambda x: x,
+    lambda x: _reflect(x, *par_bounds[3])
+]
+f_bounds = {k: {par_names[k][i]: f_bounds[i] for i in range(4)} for k in par_names.keys()}
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 _data_cache = {}
@@ -135,41 +159,153 @@ def _interpolate(points, grid, lower, upper):
     return np.reshape(result, point_shape)
 
 
+convert_to_par0 = {
+    '0': lambda x: x,
+    '1': lambda x: np.array([
+        x[0],
+        x[1],
+        x[2] + x[3] * _phi(x[0], x[1]),
+        x[3]
+    ]),
+    'M': lambda x: np.array([
+        x[0],
+        x[1],
+        x[2] * x[3],
+        x[3] ** (1 / x[0])
+    ]),
+    'A': lambda x: np.array([
+        x[0],
+        x[1],
+        x[3] * (x[2] + _phi(x[0], x[1])),
+        x[3] ** (1 / x[0])
+    ]),
+    'B': lambda x: np.array([
+        x[0],
+        np.tan(x[1] * _psi(x[0])) / np.tan(x[0] * np.pi / 2),
+        x[3] * (x[2] + np.sin(x[1] * _psi(x[0]))),
+        (x[3] * np.cos(x[1] * _psi(x[0]))) ** (1/x[0])
+    ])
+}
+
+convert_from_par0 = {
+    '0': lambda x: x,
+    '1': lambda x: np.array([
+        x[0],
+        x[1],
+        x[2] - x[3] * _phi(x[0], x[1]),
+        x[3],
+    ]),
+    'M': lambda x: np.array([
+        x[0],
+        x[1],
+        x[2] / (x[3] ** x[0]),
+        x[3] ** x[0]
+    ]),
+    'A': lambda x: np.array([
+        x[0],
+        x[1],
+        x[2] / (x[3] ** x[0]) - _phi(x[0], x[1]),
+        x[3] ** x[0]
+    ]),
+    'B': lambda x: np.array([
+        x[0],
+        np.arctan(_phi(x[0], x[1]) / ((x[0] - 1 - np.sign(x[0] - 1)) * np.pi / 2)),
+        (x[2] / (x[3] ** x[0]) - _phi(x[0], x[1])) * np.cos(np.arctan(_phi(x[0], x[1]))),
+        x[3] ** x[0] / np.cos(np.arctan(_phi(x[0], x[1])))
+    ])
+}
+
+
 class Parameters(object):
     """
     This class is a wrap for the parameters; it works such that if we fit
-    fixing one or more parameters, the optimization only acts on the other.
-    The key thing here is the setter.
+    fixing one or more parameters, the optimization only acts on the other
+    (the key thing here is the setter).
+    The only useful function to be used directly is `convert`, which allows
+    to transform parameters from one parametrization to another.
+    Available parametrizations are {0, 1, A, B, M}.
+
     """
 
-    def __init__(self, **kwargs):
-        self._x = np.array([default[k] if kwargs[k] is None else kwargs[k] for k in par_names])
-        self.variables = [i for i, k in enumerate(par_names) if kwargs[k] is None]
-        self.fixed = [i for i, k in enumerate(par_names) if kwargs[k] is not None]
-        self.fixed_values = [kwargs[k] for i, k in enumerate(par_names) if kwargs[k] is not None]
+    @classmethod
+    def convert(cls, pars, par_in, par_out):
+        """
+        Use to convert a parameter array from one parametrization to another.
 
-    def get_all(self):
-        return self._x
+        Examples:
+            >>> a = np.array([1.5, 0.5, 0, 1.2])
+            >>> Parameters.convert(a, '1', 'B')
+            array([1.5       , 0.5669115 , 0.03896531, 1.46969385])
+
+        :param pars: array of parameters to be converted
+        :type x: :class:`~numpy.ndarray`
+        :param par_in: parametrization of the input array
+        :type par_in: str
+        :param par_out: parametrization of the output array
+        :type par_out: str
+        :return: array of parameters in the desired parametrization
+        :rtype: :class:`~numpy.ndarray`
+        """
+        res = pars
+        if par_out != par_in:
+            res = convert_to_par0[par_in](pars)
+            if par_out != '0':
+                res = convert_from_par0[par_out](res)
+        return res
+
+    def __init__(self, par='0', **kwargs):
+        self.par = par
+        self.pnames = par_names[self.par]
+        self._x = np.array([default[par][k] if kwargs[k] is None else kwargs[k] for k in self.pnames])
+        self.variables = [i for i, k in enumerate(self.pnames) if kwargs[k] is None]
+        self.fixed = [i for i, k in enumerate(self.pnames) if kwargs[k] is not None]
+        self.fixed_values = [kwargs[k] for i, k in enumerate(self.pnames) if kwargs[k] is not None]
+
+    def get(self, par_out=None):
+        """
+        Same as `convert` but using from within the Parameter object.
+
+        Examples:
+            >>> p = Parameters(par='1', alpha=1.5, beta=0.5, mu=0, sigma=1.2)  # to convert
+            >>> p.get('B')  # returns the parameters in the parametrization B
+            array([1.5       , 0.5669115 , 0.03896531, 1.46969385])
+
+        """
+        if par_out is None:
+            par_out = self.par
+        return Parameters.convert(self._x, self.par, par_out)
+
 
     def __str__(self):
-        return self.x.__str__()
+        txt = ', '.join(['{{0[{0}]}}: {{1[{1}]:.2f}}'.format(i, i) for i in range(4)])
+        txt += '. Parametrization: {2}.'
+        return txt.format(self.pnames, self.get(), self.par)
+
+    def __repr__(self):
+        txt = 'par={2}, ' + ', '.join(['{{0[{0}]}}={{1[{1}]:.2f}}'.format(i, i) for i in range(4)])
+        return txt.format(self.pnames, self.get(), self.par)
 
     @property
     def x(self):
         return self._x[self.variables]
 
     @x.setter
-    def x(self, value):
+    def x(self, values):
+        if values.__class__.__name__ == 'OptimizeResult':
+            vals = values.x
+        elif values.__class__.__name__ == 'ndarray':
+            vals = values
         for j, i in enumerate(self.variables):
-            # If the fmin function is used to optimize, use this line:
-            # self._x[i] = f_bounds[par_names[i]](value[j])
-            # If the minimize function is used to optimize, use this line:
-            self._x[i] = f_bounds[par_names[i]](value.x[j])
+            self._x[i] = f_bounds[self.par][self.pnames[i]](vals[j])
 
 
 def _phi(alpha, beta):
     """ Common function. """
     return beta * np.tan(np.pi * alpha / 2.0)
+
+
+def _psi(alpha):
+    return np.pi / 2 * (alpha - 1 - np.sign(alpha - 1))
 
 
 def _calculate_levy(x, alpha, beta, cdf=False):
@@ -286,53 +422,18 @@ def _make_limit_data_file():
     np.savez(os.path.join(ROOT, 'limits.npz'), limits)
 
 
-def change_par(alpha, beta, mu, sigma, par_input, par_output):
-    """
-    Returns mu in the parametrization 'par_output', from the
-    parametrization 'par_input".
-
-    Example:
-        >>> change_par(1.8, 1, 0, 1, 1, 0)
-        -0.32491969623290645
-
-    :param alpha: alpha
-    :type alpha: float
-    :param beta: beta
-    :type beta: float
-    :param mu: mu
-    :type mu: float
-    :param sigma: sigma
-    :type sigma: float
-    :param par_input: par_input
-    :type par_input: int
-    :param par_output: par_output
-    :type par_output: int
-    :return: value of mu in the par_output parametrization
-    :rtype: float
-    """
-
-    if par_input == par_output:
-        return mu
-    elif (par_input == 0) and (par_output == 1):
-        return mu - sigma * _phi(alpha, beta)
-    elif (par_input == 1) and (par_output == 0):
-        return mu + sigma * _phi(alpha, beta)
-
-
-def levy(x, alpha, beta, mu=0.0, sigma=1.0, cdf=False, par=0):
+def levy(x, alpha, beta, mu=0.0, sigma=1.0, cdf=False):
     """
     Levy distribution with the tail replaced by the analytical (power law) approximation.
 
-    *alpha* in (0, 2] is the index of stability, or characteristic exponent.
-    *beta* in [-1, 1] is the skewness. *mu* in real and *sigma* > 0 are the
-    center and scale of the distribution (corresponding to *delta* and *gamma*
+    `alpha` in (0, 2] is the index of stability, or characteristic exponent.
+    `beta` in [-1, 1] is the skewness. `mu` in the reals and `sigma` > 0 are the
+    location and scale of the distribution (corresponding to `delta` and `gamma`
     in Nolan's notation; note that sigma in levy corresponds to sqrt(2) sigma
-    in the normal distribution).
+    in the Normal distribution).
     *cdf* is a Boolean that specifies if it returns the cdf instead of the pdf.
 
-    Parametrization can be chosen according to Nolan, par={0,1}.
-
-    See: http://fs2.american.edu/jpnolan/www/stable/stable.html
+    It uses parametrization 0 (to get it from another parametrization, convert).
 
     Example:
         >>> x = np.array([1, 2, 3])
@@ -351,13 +452,11 @@ def levy(x, alpha, beta, mu=0.0, sigma=1.0, cdf=False, par=0):
     :type sigma: float
     :param cdf: it specifies if you want the cdf instead of the pdf
     :type cdf: bool
-    :param par: parametrization
-    :type par: int
     :return: values of the pdf (or cdf if parameter 'cdf' is set to True) at 'x'
     :rtype: :class:`~numpy.ndarray`
     """
 
-    loc = change_par(alpha, beta, mu, sigma, par, 0)
+    loc = mu
 
     what = _cdf() if cdf else _pdf()
     limits = _limits()
@@ -370,6 +469,7 @@ def levy(x, alpha, beta, mu=0.0, sigma=1.0, cdf=False, par=0):
     except IndexError:
         print(alpha, alpha_index)
         print(beta, beta_index)
+        print('This should not happen! If so, please open an issue in the pylevy github page please.')
         raise
     mask = (np.abs(xr) < l)
     z = xr[mask]
@@ -390,11 +490,13 @@ def levy(x, alpha, beta, mu=0.0, sigma=1.0, cdf=False, par=0):
     return float(res) if np.isscalar(x) else res
 
 
-def neglog_levy(x, alpha, beta, mu, sigma, par=0):
+def neglog_levy(x, alpha, beta, mu, sigma):
     """
     Interpolate negative log densities of the Levy stable distribution
-    specified by alpha and beta. Small/negative densities are capped
+    specified by `alpha` and `beta`. Small/negative densities are capped
     at 1e-100 to preserve sanity.
+
+    It uses parametrization 0 (to get it from another parametrization, convert).
 
     Example:
         >>> x = np.array([1,2,3])
@@ -411,40 +513,37 @@ def neglog_levy(x, alpha, beta, mu, sigma, par=0):
     :type mu: float
     :param sigma: sigma
     :type sigma: float
-    :param par: parametrization
-    :type par: int
     :return: values of -log(pdf(x))
     :rtype: :class:`~numpy.ndarray`
     """
 
-    return -np.log(np.maximum(1e-100, levy(x, alpha, beta, mu, sigma, par=par)))
+    return -np.log(np.maximum(1e-100, levy(x, alpha, beta, mu, sigma)))
 
 
-def fit_levy(x, alpha=None, beta=None, mu=None, sigma=None, par=0):
+def fit_levy(x, par='0', **kwargs):
     """
     Estimate parameters of Levy stable distribution given data x, using
     Maximum Likelihood estimation.
 
     By default, searches all possible Levy stable distributions. However
     you may restrict the search by specifying the values of one or more
-    parameters. Parametrization can be chosen according to Nolan, par={0,1}.
+    parameters. Notice that the parameters to be fixed can be chosen in
+    all the available parametrizations {0, 1, A, B, M}.
 
     Examples:
         >>> np.random.seed(0)
         >>> x = random(1.5, 0, 0, 1, shape=200)
         >>> fit_levy(x) # -- Fit a stable distribution to x
-        (1.523332454855073, -0.08374679328809703, 0.05006400708816064, 0.9850660292714712, 402.44279062026806)
+        (par=0, alpha=1.52, beta=-0.08, mu=0.05, sigma=0.99, 402.44279062026806)
 
         >>> fit_levy(x, beta=0.0) # -- Fit a symmetric stable distribution to x
-        (1.5275585459739105, 0.0, 0.028412901208016147, 0.9874304715515858, 402.5204574692911)
+        (par=0, alpha=1.53, beta=0.00, mu=0.03, sigma=0.99, 402.5204574692911)
 
         >>> fit_levy(x, beta=0.0, mu=0.0) # -- Fit a symmetric distribution centered on zero to x
-        (1.5292748496827586, 0.0, 0.0, 0.98865238323717, 402.55578262026063)
+        (par=0, alpha=1.53, beta=0.00, mu=0.00, sigma=0.99, 402.5557826203093)
 
         >>> fit_levy(x, alpha=1.0, beta=0.0) # -- Fit a Cauchy distribution to x
-        (1.0, 0.0, 0.10120172254704864, 0.9014243199508114, 416.5364751270402)
-
-    Returns a tuple of (alpha, beta, mu, sigma, negative log density)
+        (par=0, alpha=1.00, beta=0.00, mu=0.10, sigma=0.90, 416.5364751270402)
 
     :param x: values to be fitted
     :type x: :class:`~numpy.ndarray`
@@ -458,42 +557,37 @@ def fit_levy(x, alpha=None, beta=None, mu=None, sigma=None, par=0):
     :type sigma: float
     :param par: parametrization
     :type par: int
-    :return: estimated parameters
-    :rtype: :class:`~numpy.ndarray`
+    :return: a tuple with a `Parameters` object and the negative log likelihood of the data.
+    :rtype: tuple
     """
 
-    # The parametrization is changed to par=0. At the end, the
-    # parametrization will change to par.
-    if mu is not None:
-        loc = change_par(alpha, beta, mu, sigma, par, 0)
-    elif mu is None:
-        loc = mu
+    values = {par_name: None if par_name not in kwargs else kwargs[par_name] for i, par_name in enumerate(par_names[par])}
 
-    kwargs = {'alpha': alpha, 'beta': beta, 'mu': loc, 'sigma': sigma}
-    parameters = Parameters(**kwargs)
+    parameters = Parameters(par=par, **values)
+    temp = Parameters(par=par, **values)
 
     def neglog_density(param):
-        p = np.zeros(4)
-        p[parameters.variables] = param
-        p[parameters.fixed] = parameters.fixed_values
-        alpha, beta, mu, sigma = p
+        temp.x = param
+        alpha, beta, mu, sigma = temp.get('0')
         return np.sum(neglog_levy(x, alpha, beta, mu, sigma))
 
     bounds = tuple(par_bounds[i] for i in parameters.variables)
-    parameters.x = optimize.minimize(neglog_density, parameters.x, method='L-BFGS-B', bounds=bounds)
-    alpha, beta, loc, sigma = parameters.get_all()
-    mu = change_par(alpha, beta, loc, sigma, 0, par)
+    res = optimize.minimize(neglog_density, parameters.x, method='L-BFGS-B', bounds=bounds)
+    parameters.x = res.x
 
-    return alpha, beta, mu, sigma, neglog_density(parameters.x)
+    return parameters, neglog_density(parameters.x)
 
 
-def random(alpha, beta, mu=0.0, sigma=1.0, shape=(), par=0):
+def random(alpha, beta, mu=0.0, sigma=1.0, shape=()):
     """
     Generate random values sampled from an alpha-stable distribution.
-    Parametrization can be chosen according to Nolan, par={0,1}.
+    Notice that this method is "exact", in the sense that is derived
+    directly from the definition of stable variable.
+    It uses parametrization 0 (to get it from another parametrization, convert).
 
     Example:
-        >>> x = random(1.5, 0, shape=100, par=0)
+        >>> x = random(1.5, 0, shape=100)  # parametrization 0 is implicit
+        >>> x = random(*Parameters.convert([1.5, 1.2, 0.1, 1.2] , 'B' ,'0'))  # example with conversion
 
     :param alpha: alpha
     :type alpha: float
@@ -505,13 +599,11 @@ def random(alpha, beta, mu=0.0, sigma=1.0, shape=(), par=0):
     :type sigma: float
     :param shape: shape (numpy array type) of the resulting array
     :type shape: tuple
-    :param par: parametrization
-    :type par: int
     :return: generated random values
     :rtype: :class:`~numpy.ndarray`
     """
 
-    loc = change_par(alpha, beta, mu, sigma, par, 0)
+    # loc = change_par(alpha, beta, mu, sigma, par, 0)
     if alpha == 2:
         return np.random.standard_normal(shape) * np.sqrt(2.0)
 
@@ -537,7 +629,7 @@ def random(alpha, beta, mu=0.0, sigma=1.0, shape=(), par=0):
     j = f * (2.0 * (g - h) * (g * h + 1.0) - (h * i - 2.0 * g) * e * 2.0 * h)
     k = j / (i * (h ** 2.0 + 1.0)) + e * (f - 1.0)
 
-    return loc + sigma * k
+    return mu + sigma * k
 
 
 if __name__ == "__main__":
@@ -545,9 +637,11 @@ if __name__ == "__main__":
         _make_dist_data_file()
         _make_limit_data_file()
 
-    print("Testing fit_levy.")
+    print("Testing fit_levy using parametrization 0 and fixed alpha (1.5).")
 
     N = 1000
     print("{} points, result should be (1.5, 0.5, 0.0, 1.0).".format(N))
-    result = fit_levy(random(1.5, 0.5, 0.0, 1.0, 1000))
-    print('alpha={:.2f}, beta={:.2f}, mu_0={:.2f}, sigma={:.2f}, neglog={:.2f}'.format(*result))
+    x = random(1.5, 0.5, 0.0, 1.0, 1000)
+
+    result = fit_levy(x, par='0', alpha=1.5)
+    print(result)
