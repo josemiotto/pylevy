@@ -56,7 +56,7 @@ import numpy as np
 from scipy.special import gamma
 from scipy import optimize
 
-__version__ = "0.9"
+__version__ = "1.0"
 
 # Some constants of the program.
 # Dimensions: 0 - x, 1 - alpha, 2 - beta
@@ -74,7 +74,6 @@ par_names = {  # names of the parameters
 }
 default = [1.5, 0.0, 0.0, 1.0]  # default values of the parameters for fit.
 default = {k: {par_names[k][i]: default[i] for i in range(4)} for k in par_names.keys()}
-
 f_bounds = [
     lambda x: _reflect(x, *par_bounds[0]),
     lambda x: _reflect(x, *par_bounds[1]),
@@ -159,6 +158,15 @@ def _interpolate(points, grid, lower, upper):
     return np.reshape(result, point_shape)
 
 
+def _psi(alpha):
+    return np.pi / 2 * (alpha - 1 - np.sign(alpha - 1))
+
+
+def _phi(alpha, beta):
+    """ Common function. """
+    return beta * np.tan(np.pi * alpha / 2.0)
+
+
 convert_to_par0 = {
     '0': lambda x: x,
     '1': lambda x: np.array([
@@ -209,7 +217,7 @@ convert_from_par0 = {
     ]),
     'B': lambda x: np.array([
         x[0],
-        np.arctan(_phi(x[0], x[1]) / ((x[0] - 1 - np.sign(x[0] - 1)) * np.pi / 2)),
+        np.arctan(_phi(x[0], x[1])) / _psi(x[0]),
         (x[2] / (x[3] ** x[0]) - _phi(x[0], x[1])) * np.cos(np.arctan(_phi(x[0], x[1]))),
         x[3] ** x[0] / np.cos(np.arctan(_phi(x[0], x[1])))
     ])
@@ -233,9 +241,14 @@ class Parameters(object):
         Use to convert a parameter array from one parametrization to another.
 
         Examples:
-            >>> a = np.array([1.5, 0.5, 0, 1.2])
-            >>> Parameters.convert(a, '1', 'B')
-            array([1.5       , 0.5669115 , 0.03896531, 1.46969385])
+            >>> a = np.array([1.6, 0.5, 0.3, 1.2])
+            >>> b = Parameters.convert(a, '1', 'B')
+            >>> b
+            array([1.6       , 0.55457302, 0.2460079 , 1.4243171 ])
+            >>> c = Parameters.convert(b, 'B', '1')
+            >>> c
+            array([1.6, 0.5, 0.3, 1.2])
+            >>> np.testing.assert_allclose(a, c)
 
         :param pars: array of parameters to be converted
         :type x: :class:`~numpy.ndarray`
@@ -268,13 +281,12 @@ class Parameters(object):
         Examples:
             >>> p = Parameters(par='1', alpha=1.5, beta=0.5, mu=0, sigma=1.2)  # to convert
             >>> p.get('B')  # returns the parameters in the parametrization B
-            array([1.5       , 0.5669115 , 0.03896531, 1.46969385])
+            array([1.5       , 0.59033447, 0.03896531, 1.46969385])
 
         """
         if par_out is None:
             par_out = self.par
         return Parameters.convert(self._x, self.par, par_out)
-
 
     def __str__(self):
         txt = ', '.join(['{{0[{0}]}}: {{1[{1}]:.2f}}'.format(i, i) for i in range(4)])
@@ -297,15 +309,6 @@ class Parameters(object):
             vals = values
         for j, i in enumerate(self.variables):
             self._x[i] = f_bounds[self.par][self.pnames[i]](vals[j])
-
-
-def _phi(alpha, beta):
-    """ Common function. """
-    return beta * np.tan(np.pi * alpha / 2.0)
-
-
-def _psi(alpha):
-    return np.pi / 2 * (alpha - 1 - np.sign(alpha - 1))
 
 
 def _calculate_levy(x, alpha, beta, cdf=False):
@@ -587,7 +590,7 @@ def random(alpha, beta, mu=0.0, sigma=1.0, shape=()):
 
     Example:
         >>> x = random(1.5, 0, shape=100)  # parametrization 0 is implicit
-        >>> x = random(*Parameters.convert([1.5, 1.2, 0.1, 1.2] , 'B' ,'0'))  # example with conversion
+        >>> x = random(*Parameters.convert([1.5, 0.905, 0.707, 1.414] ,'B' ,'0'), shape=100)  # example with conversion
 
     :param alpha: alpha
     :type alpha: float

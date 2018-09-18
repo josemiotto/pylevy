@@ -5,9 +5,8 @@ import levy
 
 setup(name='PyLevy',
       version=levy.__version__,
-      author='Paul Harrison',
-      author_email='pfh@logarithmic.net',
-      url='http://www.logarithmic.net/pfh/pylevy',
+      author='Paul Harrison, Jose Miotto',
+      url='https://github.com/josemiotto/pylevy',
       license='GPL',
       description='A package for calculating and fitting Levy stable distributions.',
       long_description=levy.__doc__,
