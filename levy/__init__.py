@@ -14,11 +14,6 @@
 #    along with this program; if not, write to the Free Software
 #    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
-# 2017-08-31 Paul Kienzle
-# - cache tables so repeated calls are faster
-# - support scalar and vector inputs
-# - code linting
-
 """
 This is a package for calculation of Levy stable distributions
 (probability density function and cumulative density function) and for
@@ -48,15 +43,13 @@ Notes on the parameters
 - pylevy does not support alpha values less than 0.5.
 """
 
-from __future__ import print_function, division
-
 import sys
 import os
 import numpy as np
 from scipy.special import gamma
 from scipy import optimize
 
-__version__ = "1.0"
+__version__ = "1.1"
 
 # Some constants of the program.
 # Dimensions: 0 - x, 1 - alpha, 2 - beta
@@ -86,28 +79,13 @@ ROOT = os.path.dirname(os.path.abspath(__file__))
 _data_cache = {}
 
 
-def _cdf():
+def _read_from_cache(key):
+    """ Loads the file given by key """
     try:
-        return _data_cache['cdf']
+        return _data_cache[key]
     except KeyError:
-        _data_cache['cdf'] = np.load(os.path.join(ROOT, 'cdf.npz'))['arr_0']
-        return _data_cache['cdf']
-
-
-def _pdf():
-    try:
-        return _data_cache['pdf']
-    except KeyError:
-        _data_cache['pdf'] = np.load(os.path.join(ROOT, 'pdf.npz'))['arr_0']
-        return _data_cache['pdf']
-
-
-def _limits():
-    try:
-        return _data_cache['limits']
-    except KeyError:
-        _data_cache['limits'] = np.load(os.path.join(ROOT, 'limits.npz'))['arr_0']
-        return _data_cache['limits']
+        _data_cache[key] = np.load(os.path.join(ROOT, '{}.npz'.format(key)))['arr_0']
+        return _data_cache[key]
 
 
 def _reflect(x, lower, upper):
@@ -149,8 +127,8 @@ def _interpolate(points, grid, lower, upper):
         ravel_offset = 0
         for j in range(dims):
             n = (i >> (j * 2)) % 4
-            ravel_offset = ravel_offset * grid_shape[j] + \
-                           np.maximum(0, np.minimum(grid_shape[j] - 1, floors[:, j] + (n - 1)))
+            ravel_offset = ravel_offset * grid_shape[j] + np.maximum(0, np.minimum(grid_shape[j] - 1, floors[:, j] +
+                                                                                   (n - 1)))
             weights *= weighters[n][:, j]
 
         result += weights * np.take(ravel_grid, ravel_offset)
@@ -191,7 +169,7 @@ convert_to_par0 = {
         x[0],
         np.tan(x[1] * _psi(x[0])) / np.tan(x[0] * np.pi / 2),
         x[3] * (x[2] + np.sin(x[1] * _psi(x[0]))),
-        (x[3] * np.cos(x[1] * _psi(x[0]))) ** (1/x[0])
+        (x[3] * np.cos(x[1] * _psi(x[0]))) ** (1 / x[0])
     ])
 }
 
@@ -232,7 +210,6 @@ class Parameters(object):
     The only useful function to be used directly is `convert`, which allows
     to transform parameters from one parametrization to another.
     Available parametrizations are {0, 1, A, B, M}.
-
     """
 
     @classmethod
@@ -251,7 +228,7 @@ class Parameters(object):
             >>> np.testing.assert_allclose(a, c)
 
         :param pars: array of parameters to be converted
-        :type x: :class:`~numpy.ndarray`
+        :type pars: :class:`~numpy.ndarray`
         :param par_in: parametrization of the input array
         :type par_in: str
         :param par_out: parametrization of the output array
@@ -317,38 +294,46 @@ def _calculate_levy(x, alpha, beta, cdf=False):
     This is used in the creation of the lookup table.
     Notice that to compute it in a 'true' x, the tangent must be applied.
     Example: levy(2, 1.5, 0) = _calculate_levy(np.tan(2), 1.5, 0)
-    "0" parameterization as per http://academic2.americanp.edu/~jpnolan/stable/stable.html
-    Note: fails for alpha=1.0 (so make sure alpha=1.0 isn't exactly on the interpolation grid)
+    "0" parametrization as per http://academic2.americanp.edu/~jpnolan/stable/stable.html
+    Addition: the special case alpha=1.0 was added. Due to an error in the
+    numerical integration, the limit was changed from 0 to 1e-10.
     """
     from scipy import integrate
 
     beta = -beta
-    C = _phi(alpha, beta)
 
-    def func_cos(u):
-        ua = u ** alpha
-        # if ua > 700.0: return 0.0
-        return np.exp(-ua) * np.cos(C * ua - C * u)
+    if alpha == 1:
+        li = 1e-10
 
-    def func_sin(u):
-        ua = u ** alpha
-        # if ua > 700.0: return 0.0
-        return np.exp(-ua) * np.sin(C * ua - C * u)
+        def func_cos(u):
+            return np.exp(-u) * np.cos(-beta * 2 / np.pi * (u * np.log(u) - u))
+
+        def func_sin(u):
+            return np.exp(-u) * np.sin(-beta * 2 / np.pi * (u * np.log(u) - u))
+
+    else:
+        li = 0
+
+        def func_cos(u):
+            ua = u ** alpha
+            return np.exp(-ua) * np.cos(_phi(alpha, beta) * (ua - u))
+
+        def func_sin(u):
+            ua = u ** alpha
+            return np.exp(-ua) * np.sin(_phi(alpha, beta) * (ua - u))
 
     if cdf:
         # Cumulative density function
-        return (integrate.quad(
-            lambda u: u and func_cos(u) / u or 0.0, 0.0, np.Inf, weight="sin", wvar=x, limlst=1000)[0]
-                + integrate.quad(
-            lambda u: u and func_sin(u) / u or 0.0, 0.0, np.Inf, weight="cos", wvar=x, limlst=1000)[0]
-                ) / np.pi + 0.5
+        return (
+            integrate.quad(lambda u: u and func_cos(u) / u or 0.0, li, np.Inf, weight="sin", wvar=x, limlst=1000)[0]
+            + integrate.quad(lambda u: u and func_sin(u) / u or 0.0, li, np.Inf, weight="cos", wvar=x, limlst=1000)[0]
+            ) / np.pi + 0.5
     else:
         # Probability density function
-        return (integrate.quad(
-            func_cos, 0.0, np.Inf, weight="cos", wvar=x, limlst=1000)[0]
-                - integrate.quad(
-            func_sin, 0.0, np.Inf, weight="sin", wvar=x, limlst=1000)[0]
-                ) / np.pi
+        return (
+            integrate.quad(func_cos, li, np.Inf, weight="cos", wvar=x, limlst=1000)[0]
+            - integrate.quad(func_sin, li, np.Inf, weight="sin", wvar=x, limlst=1000)[0]
+            ) / np.pi
 
 
 def _approximate(x, alpha, beta, cdf=False):
@@ -357,7 +342,7 @@ def _approximate(x, alpha, beta, cdf=False):
     values[mask] *= (1.0 + beta)
     values[~mask] *= (1.0 - beta)
     if cdf:
-        return 1.0 - values
+        return 1.0 - values * x
     else:
         return values * alpha
 
@@ -367,8 +352,8 @@ def _make_dist_data_file():
 
     xs, alphas, betas = [np.linspace(_lower[i], _upper[i], size[i], endpoint=True) for i in [0, 1, 2]]
     ts = np.tan(xs)
-    print("Generating levy_data.py ...")
 
+    print("Generating pdf.npz ...")
     pdf = np.zeros(size, 'float64')
     for i, alpha in enumerate(alphas):
         for j, beta in enumerate(betas):
@@ -376,6 +361,7 @@ def _make_dist_data_file():
             pdf[:, i, j] = [_calculate_levy(t, alpha, beta, False) for t in ts]
     np.savez(os.path.join(ROOT, 'pdf.npz'), pdf)
 
+    print("Generating cdf.npz ...")
     cdf = np.zeros(size, 'float64')
     for i, alpha in enumerate(alphas):
         for j, beta in enumerate(betas):
@@ -395,34 +381,42 @@ def _int_levy(x, alpha, beta, cdf=False):
     points = np.empty(np.shape(x) + (3,), 'float64')
     points[..., 0] = np.arctan(x)
     points[..., 1] = alpha
-    points[..., 2] = np.abs(beta)
+    points[..., 2] = beta
 
-    what = _cdf() if cdf else _pdf()
+    what = _read_from_cache('cdf') if cdf else _read_from_cache('pdf')
     return _interpolate(points, what, _lower, _upper)
 
 
-def _get_closest_approx(alpha, beta):
-    x0, x1, n = -50.0, 10000.0 - 50.0, 100000
-    dx = (x1 - x0) / n
-    x = np.linspace(x0, x1, num=n, endpoint=True)
+def _get_closest_approx(alpha, beta, upper=True):
+    n = 100000
+    x1, x2 = -50.0, 1e4 - 50.0
+    li1, li2 = 10, 500
+    if upper is False:
+        x1, x2 = -1e4 + 50, 50
+        li1, li2 = -500, -10
+    dx = (x2 - x1) / n
+    x = np.linspace(x1, x2, num=n + 1, endpoint=True)
     y = 1.0 - _int_levy(x, alpha, beta, cdf=True)
     z = 1.0 - _approximate(x, alpha, beta, cdf=True)
-    mask = (10.0 < x) & (x < 500.0)
-    return 10.0 + dx * np.argmin((np.log(z[mask]) - np.log(y[mask])) ** 2.0)
+    mask = (li1 < x) & (x < li2)
+    return li1 + dx * np.argmin((np.log(z[mask]) - np.log(y[mask])) ** 2.0)
 
 
-def _make_limit_data_file():
-    limits = np.zeros(size[1:], 'float64')
-    alphas, betas = [np.linspace(_lower[i], _upper[i], size[i], endpoint=True) for i in [1, 2]]
+def _make_limit_data_files():
+    for upper in [True, False]:
+        string = 'lower' if upper is False else 'upper'
 
-    print("Generating levy_approx_data.py ...")
+        limits = np.zeros(size[1:], 'float64')
+        alphas, betas = [np.linspace(_lower[i], _upper[i], size[i], endpoint=True) for i in [1, 2]]
 
-    for i, alpha in enumerate(alphas):
-        for j, beta in enumerate(betas):
-            limits[i, j] = _get_closest_approx(alpha, beta)
-            print("Calculating alpha={:.2f}, beta={:.2f}, limit={:.2f}".format(alpha, beta, limits[i, j]))
+        print("Generating {}_limit.npz ...".format(string))
 
-    np.savez(os.path.join(ROOT, 'limits.npz'), limits)
+        for i, alpha in enumerate(alphas):
+            for j, beta in enumerate(betas):
+                limits[i, j] = _get_closest_approx(alpha, beta, upper=upper)
+                print("Calculating alpha={:.2f}, beta={:.2f}, limit={:.2f}".format(alpha, beta, limits[i, j]))
+
+        np.savez(os.path.join(ROOT, '{}_limit.npz'.format(string)), limits)
 
 
 def levy(x, alpha, beta, mu=0.0, sigma=1.0, cdf=False):
@@ -441,7 +435,7 @@ def levy(x, alpha, beta, mu=0.0, sigma=1.0, cdf=False):
     Example:
         >>> x = np.array([1, 2, 3])
         >>> levy(x, 1.5, 0, cdf=True)
-        array([0.20203811, 0.08453908, 0.03150926])
+        array([0.75634202, 0.89496045, 0.94840227])
 
     :param x: values where the function is evaluated
     :type x: :class:`~numpy.ndarray`
@@ -461,20 +455,24 @@ def levy(x, alpha, beta, mu=0.0, sigma=1.0, cdf=False):
 
     loc = mu
 
-    what = _cdf() if cdf else _pdf()
-    limits = _limits()
+    what = _read_from_cache('cdf') if cdf else _read_from_cache('pdf')
+    # limits = _limits()
+    lower_limit = _read_from_cache('lower_limit')
+    upper_limit = _read_from_cache('upper_limit')
 
     xr = (np.asarray(x, 'd') - loc) / sigma
-    alpha_index = int((alpha -_lower[1]) / (_upper[1] - _lower[1]) * (size[1] - 1))
+    alpha_index = int((alpha - _lower[1]) / (_upper[1] - _lower[1]) * (size[1] - 1))
     beta_index = int((beta - _lower[2]) / (_upper[2] - _lower[2]) * (size[2] - 1))
     try:
-        l = limits[alpha_index, beta_index]
+        # lims = limits[alpha_index, beta_index]
+        low_lims = lower_limit[alpha_index, beta_index]
+        up_lims = upper_limit[alpha_index, beta_index]
     except IndexError:
         print(alpha, alpha_index)
         print(beta, beta_index)
         print('This should not happen! If so, please open an issue in the pylevy github page please.')
         raise
-    mask = (np.abs(xr) < l)
+    mask = (low_lims <= xr) & (xr <= up_lims)
     z = xr[mask]
 
     points = np.empty(np.shape(z) + (3,), 'float64')
@@ -535,36 +533,29 @@ def fit_levy(x, par='0', **kwargs):
 
     Examples:
         >>> np.random.seed(0)
-        >>> x = random(1.5, 0, 0, 1, shape=200)
+        >>> x = random(1.5, 0, 0, 1, shape=(200,))
         >>> fit_levy(x) # -- Fit a stable distribution to x
-        (par=0, alpha=1.52, beta=-0.08, mu=0.05, sigma=0.99, 402.44279062026806)
+        (par=0, alpha=1.52, beta=-0.08, mu=0.05, sigma=0.99, 402.37150603509247)
 
         >>> fit_levy(x, beta=0.0) # -- Fit a symmetric stable distribution to x
-        (par=0, alpha=1.53, beta=0.00, mu=0.03, sigma=0.99, 402.5204574692911)
+        (par=0, alpha=1.53, beta=0.00, mu=0.03, sigma=0.99, 402.43833088693725)
 
         >>> fit_levy(x, beta=0.0, mu=0.0) # -- Fit a symmetric distribution centered on zero to x
-        (par=0, alpha=1.53, beta=0.00, mu=0.00, sigma=0.99, 402.5557826203093)
+        (par=0, alpha=1.53, beta=0.00, mu=0.00, sigma=0.99, 402.4736618823546)
 
         >>> fit_levy(x, alpha=1.0, beta=0.0) # -- Fit a Cauchy distribution to x
-        (par=0, alpha=1.00, beta=0.00, mu=0.10, sigma=0.90, 416.5364751270402)
+        (par=0, alpha=1.00, beta=0.00, mu=0.10, sigma=0.90, 416.54249079255976)
 
     :param x: values to be fitted
     :type x: :class:`~numpy.ndarray`
-    :param alpha: alpha
-    :type alpha: float
-    :param beta: beta
-    :type beta: float
-    :param mu: mu
-    :type mu: float
-    :param sigma: sigma
-    :type sigma: float
     :param par: parametrization
-    :type par: int
+    :type par: str
     :return: a tuple with a `Parameters` object and the negative log likelihood of the data.
     :rtype: tuple
     """
 
-    values = {par_name: None if par_name not in kwargs else kwargs[par_name] for i, par_name in enumerate(par_names[par])}
+    values = {par_name: None if par_name not in kwargs else kwargs[par_name] for i, par_name in
+              enumerate(par_names[par])}
 
     parameters = Parameters(par=par, **values)
     temp = Parameters(par=par, **values)
@@ -589,8 +580,9 @@ def random(alpha, beta, mu=0.0, sigma=1.0, shape=()):
     It uses parametrization 0 (to get it from another parametrization, convert).
 
     Example:
-        >>> x = random(1.5, 0, shape=100)  # parametrization 0 is implicit
-        >>> x = random(*Parameters.convert([1.5, 0.905, 0.707, 1.414] ,'B' ,'0'), shape=100)  # example with conversion
+        >>> rnd = random(1.5, 0, shape=(100,))  # parametrization 0 is implicit
+        >>> par = np.array([1.5, 0.905, 0.707, 1.414])
+        >>> rnd = random(*Parameters.convert(par ,'B' ,'0'), shape=(100,))  # example with convert
 
     :param alpha: alpha
     :type alpha: float
@@ -638,13 +630,13 @@ def random(alpha, beta, mu=0.0, sigma=1.0, shape=()):
 if __name__ == "__main__":
     if "build" in sys.argv[1:]:
         _make_dist_data_file()
-        _make_limit_data_file()
+        _make_limit_data_files()
 
     print("Testing fit_levy using parametrization 0 and fixed alpha (1.5).")
 
     N = 1000
     print("{} points, result should be (1.5, 0.5, 0.0, 1.0).".format(N))
-    x = random(1.5, 0.5, 0.0, 1.0, 1000)
+    x0 = random(1.5, 0.5, 0.0, 1.0, shape=(1000))
 
-    result = fit_levy(x, par='0', alpha=1.5)
-    print(result)
+    result0 = fit_levy(x0, par='0', alpha=1.5)
+    print(result0)

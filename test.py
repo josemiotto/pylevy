@@ -5,9 +5,8 @@ parameters alpha, beta, mu, sigma.
 The 50%, 5% and 95% quantiles of the distributions of the 4 parameters
 are returned.
 """
-
+import numpy as np
 import levy
-from builtins import range
 
 
 def get_quantiles(l):
@@ -15,8 +14,8 @@ def get_quantiles(l):
     return l[int(n * 0.5)], l[int(n * 0.05)], l[int(n * 0.95)]
 
 
-alpha = 1.0
-beta = 0.0
+alpha = 0.5 + 1.5 * np.random.rand()
+beta = -1 + 2 * np.random.rand()
 mu = 0.0
 sigma = 1.0
 
@@ -25,17 +24,17 @@ n_data = 1000
 
 parameters_list = []
 for _ in range(n_iter):
-    data = levy.random(alpha, 0.0, 0.0, 1.0, n_data)
-    parameters = levy.fit_levy(data, beta=0.0)
+    data = levy.random(alpha, beta, mu, sigma, n_data)
+    parameters = levy.fit_levy(data)
     print(parameters)
     parameters_list.append(parameters)
     if _ % 20 == 0:
         print(_)
 
-alphas = sorted([_[0] for _ in parameters_list])
-betas = sorted([_[1] for _ in parameters_list])
-mus = sorted([_[2] for _ in parameters_list])
-sigmas = sorted([_[3] for _ in parameters_list])
+alphas = sorted([_[0].x[0] for _ in parameters_list])
+betas = sorted([_[0].x[1] for _ in parameters_list])
+mus = sorted([_[0].x[2] for _ in parameters_list])
+sigmas = sorted([_[0].x[3] for _ in parameters_list])
 
 print(get_quantiles(alphas))
 print(get_quantiles(betas))
