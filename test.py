@@ -14,6 +14,8 @@ def get_quantiles(l):
     return l[int(n * 0.5)], l[int(n * 0.05)], l[int(n * 0.95)]
 
 
+np.random.seed(0)
+
 alpha = 0.5 + 1.5 * np.random.rand()
 beta = -1 + 2 * np.random.rand()
 mu = 0.0
