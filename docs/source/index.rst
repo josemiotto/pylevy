@@ -12,6 +12,8 @@ Welcome to pylevy's documentation!
 
    levy
 
+.. image:: levy_distributions.png
+   :width: 600
 
 Indices and tables
 ==================
