@@ -12,7 +12,7 @@ Welcome to pylevy's documentation!
 
    levy
 
-.. image:: source/_static/levy_distributions.pdf
+.. image:: _static/levy_distributions.pdf
    :width: 600
 
 Indices and tables
