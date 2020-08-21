@@ -40,7 +40,7 @@ Notes on the parameters
   Parameters.convert to transform the parameters from one parametrization
   to another. The module uses internally parametrization 0.
 
-- pylevy does not support alpha values less than 0.5.
+- pylevy does not support alpha values lower than 0.5.
 """
 
 import sys
@@ -305,11 +305,14 @@ def _calculate_levy(x, alpha, beta, cdf=False):
     if alpha == 1:
         li = 1e-10
 
+        # These functions need a correction, since the distribution is displaced, probably get rid of "-u" at the end
         def func_cos(u):
-            return np.exp(-u) * np.cos(-beta * 2 / np.pi * (u * np.log(u) - u))
+            # return np.exp(-u) * np.cos(-beta * 2 / np.pi * (u * np.log(u) - u))
+            return np.exp(-u) * np.cos(-beta * 2 / np.pi * u * np.log(u))
 
         def func_sin(u):
-            return np.exp(-u) * np.sin(-beta * 2 / np.pi * (u * np.log(u) - u))
+            # return np.exp(-u) * np.sin(-beta * 2 / np.pi * (u * np.log(u) - u))
+            return np.exp(-u) * np.sin(-beta * 2 / np.pi * u * np.log(u))
 
     else:
         li = 0
@@ -342,7 +345,9 @@ def _approximate(x, alpha, beta, cdf=False):
     values[mask] *= (1.0 + beta)
     values[~mask] *= (1.0 - beta)
     if cdf:
-        return 1.0 - values * x
+        values[mask] = 1.0 - values[mask] * x[mask]
+        values[~mask] = values[~mask] * (-x[~mask])
+        return values
     else:
         return values * alpha
 
@@ -603,7 +608,7 @@ def random(alpha, beta, mu=0.0, sigma=1.0, shape=()):
         return np.random.standard_normal(shape) * np.sqrt(2.0)
 
     # Fails for alpha exactly equal to 1.0
-    # but works fine for alpha infinitesimally greater or less than 1.0
+    # but works fine for alpha infinitesimally greater or lower than 1.0
     radius = 1e-15  # <<< this number is *very* small
     if np.absolute(alpha - 1.0) < radius:
         # So doing this will make almost exactly no difference at all
