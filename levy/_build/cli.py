@@ -73,14 +73,15 @@ def where(args):
     import levy
 
     print("tables in use : {}".format(levy.data_dir()))
-    print("packaged      : {}".format(levy.ROOT))
+    print("packaged      : {}".format(levy.PACKAGED_DATA))
     print("user cache    : {}".format(levy.user_cache_dir()))
     print("LEVY_DATA_DIR : {}".format(os.environ.get("LEVY_DATA_DIR", "(unset)")))
-    for name in ("pdf", "cdf", "lower_limit", "upper_limit"):
-        path = os.path.join(levy.data_dir(), "{}.npz".format(name))
-        marker = "ok" if os.path.exists(path) else "MISSING"
-        size_mb = os.path.getsize(path) / 1e6 if os.path.exists(path) else 0.0
-        print("  {:<12} {:>6}  {:8.2f} MB".format(name, marker, size_mb))
+    directory = levy.data_dir()
+    for name in sorted(os.listdir(directory)) if os.path.isdir(directory) else []:
+        if not name.endswith((".npz", ".json")):
+            continue
+        size_mb = os.path.getsize(os.path.join(directory, name)) / 1e6
+        print("  {:<16} {:8.2f} MB".format(name, size_mb))
     return 0
 
 

@@ -92,6 +92,10 @@ f_bounds = [
 f_bounds = {k: {par_names[k][i]: f_bounds[i] for i in range(4)} for k in par_names.keys()}
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
+#: Tables shipped with the package. They used to sit directly in the package
+#: directory as four float64 archives; they are now float32 and in data/, with
+#: the two crossover-limit tables merged into limits.npz.
+PACKAGED_DATA = os.path.join(ROOT, 'data')
 _data_cache = {}
 
 _TABLE_NAMES = ('pdf', 'cdf', 'lower_limit', 'upper_limit')
@@ -133,9 +137,24 @@ def data_dir(writable=False):
     cache = user_cache_dir()
     if writable:
         return cache
-    if all(os.path.exists(os.path.join(cache, '{}.npz'.format(n))) for n in _TABLE_NAMES):
+    if _has_complete_tables(cache):
         return cache
-    return ROOT
+    return PACKAGED_DATA
+
+
+def _has_complete_tables(directory):
+    """ True if `directory` holds a usable set of tables, in either layout.
+
+    The crossover limits ship as a single limits.npz with `lower` and `upper`
+    arrays; tables built by an older version have them as two separate files.
+    """
+    if not all(os.path.exists(os.path.join(directory, '{}.npz'.format(n)))
+               for n in ('pdf', 'cdf')):
+        return False
+    if os.path.exists(os.path.join(directory, 'limits.npz')):
+        return True
+    return all(os.path.exists(os.path.join(directory, '{}.npz'.format(n)))
+               for n in ('lower_limit', 'upper_limit'))
 
 
 # Cells of cdf.npz that scipy.integrate.quad failed to evaluate when the table
@@ -231,12 +250,24 @@ def _read_from_cache(key):
     try:
         return _data_cache[key]
     except KeyError:
-        # np.load returns a lazy NpzFile; materialise the array and let the
-        # archive close instead of leaking the handle until garbage collection.
-        with np.load(os.path.join(data_dir(), '{}.npz'.format(key))) as archive:
-            table = archive['arr_0']
-        _data_cache[key] = _repair_table(key, table)
+        _data_cache[key] = _repair_table(key, _load_table(data_dir(), key))
         return _data_cache[key]
+
+
+def _load_table(directory, key):
+    """ Read one table from `directory`, in either storage layout.
+
+    np.load returns a lazy NpzFile; the array is materialised and the archive
+    closed rather than leaking the handle until garbage collection.
+    """
+    if key in ('lower_limit', 'upper_limit'):
+        merged = os.path.join(directory, 'limits.npz')
+        if os.path.exists(merged):
+            with np.load(merged) as archive:
+                return archive[key.split('_')[0]]
+
+    with np.load(os.path.join(directory, '{}.npz'.format(key))) as archive:
+        return archive[archive.files[0]]
 
 
 def _reflect(x, lower, upper):
@@ -794,15 +825,3 @@ def __getattr__(name):
         from levy import _build
         return getattr(_build, _MOVED_TO_BUILD[name])
     raise AttributeError('module {!r} has no attribute {!r}'.format(__name__, name))
-
-
-if __name__ == "__main__":
-    from levy._build.cli import main
-    logger.warning(
-        "`python -m levy build` is superseded by the `levy-tables` command, "
-        "which writes to a cache directory instead of into the installed package."
-    )
-    # Pass the subcommand through. Prepending 'build' unconditionally turned
-    # `python levy/__init__.py where` into `build where`; no arguments still
-    # means build, which is what this entry point has always done.
-    sys.exit(main(sys.argv[1:] or ['build']))

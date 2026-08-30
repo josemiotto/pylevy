@@ -27,10 +27,10 @@ TINY = (24, 10, 13)
 # --------------------------------------------------------------------------
 
 
-def test_data_dir_defaults_to_the_package(monkeypatch, tmp_path):
+def test_data_dir_defaults_to_the_packaged_tables(monkeypatch, tmp_path):
     monkeypatch.delenv("LEVY_DATA_DIR", raising=False)
     monkeypatch.setattr(levy, "user_cache_dir", lambda: str(tmp_path / "empty"))
-    assert levy.data_dir() == levy.ROOT
+    assert levy.data_dir() == levy.PACKAGED_DATA
 
 
 def test_data_dir_honours_the_environment_override(monkeypatch):
@@ -46,9 +46,22 @@ def test_data_dir_prefers_a_complete_cache(monkeypatch, tmp_path):
 
     # An incomplete cache must be ignored, not half-used.
     (cache / "pdf.npz").write_bytes(b"")
-    assert levy.data_dir() == levy.ROOT
+    assert levy.data_dir() == levy.PACKAGED_DATA
 
-    for name in levy._TABLE_NAMES:
+    # pdf + cdf + the merged limits file is a complete set.
+    (cache / "cdf.npz").write_bytes(b"")
+    assert levy.data_dir() == levy.PACKAGED_DATA
+    (cache / "limits.npz").write_bytes(b"")
+    assert levy.data_dir() == str(cache)
+
+
+def test_data_dir_accepts_the_legacy_split_limit_files(monkeypatch, tmp_path):
+    """Tables built before limits.npz existed must still be usable."""
+    monkeypatch.delenv("LEVY_DATA_DIR", raising=False)
+    cache = tmp_path / "legacy"
+    cache.mkdir()
+    monkeypatch.setattr(levy, "user_cache_dir", lambda: str(cache))
+    for name in ("pdf", "cdf", "lower_limit", "upper_limit"):
         (cache / "{}.npz".format(name)).write_bytes(b"")
     assert levy.data_dir() == str(cache)
 
@@ -102,18 +115,19 @@ def test_generated_table_matches_quadrature(tmp_path):
 
 @pytest.mark.build
 def test_build_writes_nothing_into_the_installed_package(tmp_path):
-    before = {
-        name: (lambda st: (st.st_mtime_ns, st.st_size))(
-            os.stat(os.path.join(levy.ROOT, "{}.npz".format(name))))
-        for name in levy._TABLE_NAMES
-    }
+    def snapshot():
+        # st_mtime_ns and st_size, not getmtime: getmtime is seconds-resolution
+        # on some filesystems, so a rewrite inside the same second would leave
+        # this test green while the build clobbered the installed package.
+        out = {}
+        for name in sorted(os.listdir(levy.PACKAGED_DATA)):
+            st = os.stat(os.path.join(levy.PACKAGED_DATA, name))
+            out[name] = (st.st_mtime_ns, st.st_size)
+        return out
+
+    before = snapshot()
     build_density_tables(str(tmp_path), TINY, jobs=1, what=("pdf",))
-    after = {
-        name: (lambda st: (st.st_mtime_ns, st.st_size))(
-            os.stat(os.path.join(levy.ROOT, "{}.npz".format(name))))
-        for name in levy._TABLE_NAMES
-    }
-    assert before == after
+    assert before == snapshot()
 
 
 @pytest.mark.build
@@ -165,8 +179,8 @@ def test_cli_where_reports_the_search_path(capsys):
     output = capsys.readouterr().out
     assert "tables in use" in output
     assert "LEVY_DATA_DIR" in output
-    for name in levy._TABLE_NAMES:
-        assert name in output
+    assert "pdf.npz" in output and "cdf.npz" in output
+    assert "limits.npz" in output
 
 
 def test_cli_with_no_command_prints_help(capsys):
@@ -216,3 +230,20 @@ def test_tables_of_a_different_resolution_are_usable(tmp_path, monkeypatch):
         assert np.all(np.isfinite(result))
     finally:
         levy._data_cache.clear()
+
+
+def test_python_dash_m_levy_works(tmp_path):
+    """`python -m levy` needs levy/__main__.py, which never existed.
+
+    The module docstring documented `python -m levy build` as the way to
+    regenerate the tables, but for a package that requires __main__.py; the
+    `if __name__ == "__main__"` block in __init__.py is only reachable by
+    running the file directly. Verified against master: it failed there too.
+    """
+    completed = subprocess.run(
+        [sys.executable, "-m", "levy", "where"],
+        capture_output=True, text=True, timeout=120,
+        env=dict(os.environ, PYTHONPATH=os.getcwd()),
+    )
+    assert completed.returncode == 0, completed.stderr
+    assert "tables in use" in completed.stdout
