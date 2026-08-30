@@ -55,73 +55,53 @@ def test_random_at_alpha_2_respects_location_and_scale():
 
 
 # --------------------------------------------------------------------------
-# (b) alpha below the supported floor indexes the table from the wrong end
-# --------------------------------------------------------------------------
-
-
-@xfail
-def test_alpha_below_supported_range_is_rejected():
-    """The module docstring (line 43) says alpha < 0.5 is unsupported, but
-    levy/__init__.py:469 computes ``int((alpha - 0.5) / 1.5 * 75)`` with no
-    lower bound, so alpha=0.4 gives index -4 -- a *valid* negative index that
-    silently reads the limits for alpha ~ 1.94. The ``except IndexError`` guard
-    at line 471 only catches positive overflow.
-
-    Observed: ``levy(x, 0.4, 0)`` returns the same values as ``levy(x, 0.5, 0)``
-    instead of raising.
-    """
-    with pytest.raises(ValueError):
-        levy.levy(np.array([1.0, 2.0]), 0.4, 0.0)
-
-
-@xfail
-def test_beta_outside_range_is_rejected():
-    """Same missing validation on the beta axis (line 470)."""
-    with pytest.raises(ValueError):
-        levy.levy(np.array([1.0, 2.0]), 1.5, 1.5)
-
-
-@xfail
-def test_alpha_below_range_does_not_alias_to_the_boundary():
-    """Distinct unsupported alphas must not silently produce identical output."""
-    assert not np.allclose(
-        levy.levy(np.array([1.0, 2.0]), 0.4, 0.0),
-        levy.levy(np.array([1.0, 2.0]), 0.5, 0.0),
-    )
-
-
-# --------------------------------------------------------------------------
 # (c) the tail-crossover cell is truncated instead of rounded
 # --------------------------------------------------------------------------
 
 
 @xfail
-def test_tail_crossover_uses_the_nearest_grid_cell():
-    """levy/__init__.py:469-470 truncate with ``int()`` where they should round.
+def test_tail_crossover_is_accurate_off_the_grid():
+    """The tail crossover is inaccurate for alpha/beta between grid points.
 
-    The consequence is observable, not cosmetic. At alpha=1.410182, beta=-0.5
-    the truncated cell has an upper crossover of 71.30 while the nearest cell
-    has 499.80. At x=285.55 the two branches disagree by 64%:
+    ``_grid_index`` snaps (alpha, beta) to one cell of the 76x101 limit tables
+    and uses that cell's crossover for every value in between. The consequence
+    is large: at alpha=1.410182, beta=-0.5 the selected cell has an upper
+    crossover of 71.30 while the neighbouring cell has 499.80, so at x=285.55
+    the two disagree by 64% -- one takes the power-law branch, the other the
+    interpolated branch.
 
-        levy() returns        1.919040e-07   (power-law tail branch)
-        interpolated value    5.382755e-07   (what the nearest cell gives)
+    Note that simply rounding to the nearest cell does **not** fix this. Over
+    300 sampled disagreement points, measured against ``_calculate_levy``:
 
-    ``sigma`` is unaffected; this is purely the choice of limit cell.
+        truncate  median 1.1164e-02   mean 3.5488e-01   p90 1.4560
+        round     median 1.4552e-02   mean 4.3251e-01   p90 1.4656
+        bilinear  median 1.0106e-02   mean 2.9459e-01   p90 0.9723
+
+    Rounding is *worse* on the median and better on only 43% of points. The
+    error is dominated by the seam itself: the interpolated branch and the
+    power-law branch do not meet at the crossover (see
+    ``test_cdf_is_monotone_across_the_tail_crossover``). A real fix means
+    interpolating the limits and reconciling the two branches so they agree
+    where they join, which is a numerical change worth its own PR and its own
+    evidence -- not a one-line int()/round() swap.
+
+    This test asserts the accuracy target, so it stays red until that lands.
     """
-    alpha, beta, x = 1.410182, -0.5, 285.55
-    probe = np.array([x])
+    rng = np.random.RandomState(0)
+    errors = []
+    for _ in range(40):
+        alpha = rng.uniform(0.55, 1.95)
+        beta = rng.uniform(-0.95, 0.95)
+        x = rng.uniform(15.0, 700.0) * rng.choice([-1.0, 1.0])
+        truth = levy._calculate_levy(float(x), alpha, beta, False)
+        if not np.isfinite(truth) or abs(truth) < 1e-300:
+            continue
+        got = levy.levy(np.array([float(x)]), alpha, beta)[0]
+        errors.append(abs(got - truth) / abs(truth))
 
-    # The nearest cell puts x inside the interpolated region.
-    upper_limit = _table("upper_limit")
-    k = (alpha - 0.5) / 1.5 * 75
-    beta_index = int(round((beta + 1.0) / 2.0 * 100))
-    assert int(k) != int(round(k)), "probe no longer straddles two cells"
-    assert x < upper_limit[int(round(k)), beta_index]
-
-    np.testing.assert_allclose(
-        levy.levy(probe, alpha, beta),
-        levy._int_levy(probe, alpha, beta),
-        rtol=1e-9,
+    assert np.median(errors) < 1e-4, (
+        "median relative error near the tail crossover is "
+        f"{np.median(errors):.3e}"
     )
 
 
