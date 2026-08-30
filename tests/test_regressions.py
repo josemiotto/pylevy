@@ -11,9 +11,11 @@ logging" -- see that commit for the reasoning behind each.
 
 from __future__ import annotations
 
+import gc
 import math
 import subprocess
 import sys
+import warnings
 
 import numpy as np
 import pytest
@@ -354,3 +356,113 @@ def test_alpha_1_is_continuous_with_its_neighbourhood():
         samples[alpha] = levy.random(alpha, 0.7, 0.0, 1.0, shape=(60000,))
     assert stats.ks_2samp(samples[1.0], samples[0.9999]).pvalue > 1e-3
     assert stats.ks_2samp(samples[1.0], samples[1.0001]).pvalue > 1e-3
+
+
+# --------------------------------------------------------------------------
+# Corrupt CDF table cells (was: levy(..., cdf=True) returning 6.4e+307)
+# --------------------------------------------------------------------------
+
+
+def test_loaded_cdf_table_is_a_probability():
+    """The table as *used* must be a CDF, even though the shipped file is not.
+
+    Four cells of cdf.npz hold 5.72e+307; they are repaired when the table is
+    loaded. The file itself is still bad -- see test_known_bugs.py.
+    """
+    table = levy._read_from_cache("cdf")
+    assert np.isfinite(table).all()
+    assert table.min() >= -levy._CDF_TOLERANCE
+    assert table.max() <= 1.0 + levy._CDF_TOLERANCE
+
+
+@pytest.mark.parametrize("beta", [-0.74, 0.74])
+def test_cdf_is_usable_at_the_formerly_corrupt_cells(beta):
+    """Reproducer: this returned 6.4e+307 before the repair."""
+    result = levy.levy(np.array([-1.0, 0.0, 1.0]), 0.58, beta, cdf=True)
+    assert np.all((result >= 0.0) & (result <= 1.0))
+    assert np.all(np.diff(result) > 0), "CDF must increase in x"
+
+
+def test_repaired_cells_respect_skew_symmetry():
+    """An independent check that the interpolated values are right.
+
+    For a stable law, F(x; alpha, beta) = 1 - F(-x; alpha, -beta). The repair
+    fills the two beta = +-0.74 columns separately, so this holding to 1e-9 is
+    real evidence and not a tautology.
+    """
+    x = np.array([-2.0, -1.0, -0.5, 0.0, 0.5, 1.0, 2.0])
+    positive = levy.levy(x, 0.58, 0.74, cdf=True)
+    negative = levy.levy(-x[::-1], 0.58, -0.74, cdf=True)
+    np.testing.assert_allclose(positive, 1.0 - negative[::-1], rtol=0, atol=1e-9)
+
+
+def test_repaired_column_is_monotone():
+    table = levy._read_from_cache("cdf")
+    for beta_index in (13, 87):
+        column = table[95:105, 4, beta_index]
+        assert np.all(np.diff(column) > 0), f"beta index {beta_index} not monotone"
+
+
+def test_repair_survives_a_column_with_no_usable_cell():
+    """Whole column bad -> left is -1 and right is x_size, and the neighbour
+    copy used to index one past the end of the table.
+    """
+    table = np.zeros((4, 2, 2), dtype="float64")
+    table[:, 0, 0] = 5.72e307          # every x in this column is unusable
+    repaired = levy._repair_table("cdf", table)
+    assert np.all((repaired[:, 0, 0] >= 0.0) & (repaired[:, 0, 0] <= 1.0))
+
+
+def test_repair_leaves_no_nan_in_a_column_with_no_usable_cell():
+    """np.clip passes NaN through, so a column of NaN came back as a column of
+    NaN -- while the warning said it had been clipped into [0, 1].
+    """
+    table = np.zeros((4, 2, 2), dtype="float64")
+    table[:, 0, 0] = np.nan
+    table[:, 1, 1] = -np.inf
+    table[:, 0, 1] = np.inf
+    repaired = levy._repair_table("cdf", table)
+    assert np.isfinite(repaired).all()
+    assert np.all((repaired >= 0.0) & (repaired <= 1.0))
+
+
+def test_edge_cells_are_reported_as_copied_not_interpolated(caplog):
+    """A bad cell at the end of the x range has one usable neighbour, so it
+    is copied, not interpolated -- but it used to be counted and reported
+    as interpolated along x.
+    """
+    import logging
+
+    table = np.full((4, 2, 2), 0.5, dtype="float64")
+    table[0, 0, 0] = np.nan            # first x cell: neighbour on the right only
+    with caplog.at_level(logging.WARNING, logger="levy"):
+        repaired = levy._repair_table("cdf", table)
+    assert repaired[0, 0, 0] == 0.5
+    assert "copied" in caplog.text
+    assert "interpolating" not in caplog.text
+
+
+def test_unusable_column_warning_names_grid_indices(caplog):
+    """The message used to read `alpha=4 beta=13`, which looks like parameter
+    values; they are grid indices, and now say so.
+    """
+    import logging
+
+    table = np.zeros((4, 3, 5), dtype="float64")
+    table[:, 2, 4] = np.nan
+    with caplog.at_level(logging.WARNING, logger="levy"):
+        levy._repair_table("cdf", table)
+    assert "alpha index 2, beta index 4" in caplog.text
+
+
+def test_table_load_does_not_leak_the_npz_handle():
+    """np.load returns a lazy NpzFile; it is now closed after extraction."""
+    levy._data_cache.pop("pdf", None)
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", ResourceWarning)
+        table = levy._read_from_cache("pdf")
+        # A leaked NpzFile only warns when it is collected, so force a
+        # cycle while the filter is still active. Without this the test
+        # passes whether or not the handle was closed.
+        gc.collect()
+    assert isinstance(table, np.ndarray)
