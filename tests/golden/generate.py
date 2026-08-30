@@ -32,7 +32,7 @@ REPO_ROOT = TESTS_DIR.parent
 GOLDEN_PATH = HERE / "golden_v1.jsonl"
 
 sys.path.insert(0, str(TESTS_DIR))
-sys.path.insert(0, str(REPO_ROOT))
+sys.path.insert(0, str(REPO_ROOT / "src"))
 
 from _cases import all_cases  # noqa: E402
 from _compare import DETERMINISTIC_GROUPS, matches  # noqa: E402

@@ -16,10 +16,11 @@ import pytest
 TESTS_DIR = Path(__file__).resolve().parent
 REPO_ROOT = TESTS_DIR.parent
 
-# Import the package under test from the working tree, and let the test helper
-# modules (_cases, _compare, _encode) be imported by name.
+# Import the package under test from src/ (the layout keeps the working tree
+# from shadowing an installed copy), and let the test helper modules
+# (_cases, _compare, _encode) be imported by name.
 sys.path.insert(0, str(TESTS_DIR))
-sys.path.insert(0, str(REPO_ROOT))
+sys.path.insert(0, str(REPO_ROOT / "src"))
 
 sys.path.insert(0, str(TESTS_DIR / "golden"))
 
