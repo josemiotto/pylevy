@@ -52,6 +52,32 @@ params = api.StableParams.from_par(1.6, 0.5, 0.3, 1.2, par='1')
 params.to_par('B')
 ```
 
+## pandas
+
+    pip install ".[pandas]"
+
+`pdf`, `cdf` and `logpdf` accept a `Series` or a `DataFrame` and return one
+with the same index; `fit` accepts a `Series` or a single-column `DataFrame`
+(a wider one is refused rather than pooled), and `FitResult.to_series()`
+reports the parameters under their names.
+
+```python
+import numpy as np
+import pandas as pd
+from levy import api
+
+prices = pd.read_csv("prices.csv", index_col="date", parse_dates=True)["close"]
+returns = np.log(prices).diff().dropna()
+
+api.fit(returns).to_series()
+# alpha    1.63
+# beta    -0.07
+# mu       0.00
+# sigma    0.01
+```
+
+Without the extra, pandas is never imported.
+
 ## Regenerating the tables
 
 The shipped tables are enough for normal use. To rebuild them, at the default
