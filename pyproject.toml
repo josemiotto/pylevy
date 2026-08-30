@@ -46,6 +46,11 @@ dynamic = ["version"]
 [project.optional-dependencies]
 dev = ["pytest>=7", "build", "twine"]
 
+# Regenerates the lookup tables into a user cache directory. Replaces
+# `python -m levy build`, which wrote 24 MB into the installed package.
+[project.scripts]
+levy-tables = "levy._build.cli:main"
+
 [project.urls]
 Homepage = "https://github.com/josemiotto/pylevy"
 Documentation = "https://pylevy.readthedocs.io/en/latest/index.html"
@@ -70,4 +75,7 @@ levy = ["*.npz"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-markers = ["slow: fits and other cases that take more than a moment"]
+markers = [
+    "slow: cases that take more than a moment",
+    "build: regenerates lookup tables by quadrature; ~70s, run in its own CI job",
+]
