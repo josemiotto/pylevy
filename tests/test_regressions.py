@@ -488,3 +488,47 @@ def test_table_load_does_not_leak_the_npz_handle():
         # passes whether or not the handle was closed.
         gc.collect()
     assert isinstance(table, np.ndarray)
+
+
+# --------------------------------------------------------------------------
+# Naming
+# --------------------------------------------------------------------------
+
+
+def test_sampler_has_no_single_letter_locals():
+    """The CMS transform was written in 14 one- and two-letter locals.
+
+    Guard so they do not creep back. Scoped to `random` itself, and to plain
+    assignments: loop indices and comprehension variables are exempt.
+    """
+    import ast
+
+    import levy.sampling
+
+    with open(levy.sampling.__file__, encoding="utf-8") as handle:
+        source = handle.read()
+    tree = ast.parse(source)
+    # Only the sampler itself. Walking the whole module would also judge
+    # unrelated helpers and module-level assignments, which is not what this
+    # guard is about and would make it fail for the wrong reasons.
+    functions = [n for n in ast.walk(tree)
+                 if isinstance(n, ast.FunctionDef) and n.name == "random"]
+    assert len(functions) == 1, (
+        "expected exactly one `random` function in levy.sampling; the guard "
+        f"needs updating if the sampler was renamed or moved (found {len(functions)})")
+    sampler = functions[0]
+    offenders = set()
+    for node in ast.walk(sampler):
+        if isinstance(node, ast.Assign):
+            for target in node.targets:
+                # Walk the target rather than isinstance-ing it: a tuple
+                # unpacking like `a, b = ...` keeps its Names one level
+                # down, so the guard used to miss exactly the terse names
+                # it exists to catch.
+                for name in ast.walk(target):
+                    if isinstance(name, ast.Name) and len(name.id.lstrip("_")) <= 2:
+                        offenders.add(name.id)
+    offenders -= {"pi"}  # np.pi alias, reads fine
+    assert not offenders, "single/double-letter locals in the sampler: {}".format(
+        sorted(offenders)
+    )
