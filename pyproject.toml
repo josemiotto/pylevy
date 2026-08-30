@@ -1,0 +1,73 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "PyLevy"
+description = "A package for calculating and fitting Levy stable distributions."
+readme = { file = "README.md", content-type = "text/markdown" }
+license = "GPL-3.0-or-later"
+license-files = ["LICENSE"]
+requires-python = ">=3.9"
+authors = [
+    { name = "Paul Harrison" },
+    { name = "José María Miotto", email = "josemiotto@gmail.com" },
+]
+maintainers = [{ name = "José María Miotto", email = "josemiotto@gmail.com" }]
+keywords = [
+    "levy",
+    "alpha-stable",
+    "stable distribution",
+    "heavy tails",
+    "maximum likelihood",
+    "statistics",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Mathematics",
+]
+
+# Floors, not pins. The previous requirements.txt used `==` on numpy 1.15.0 and
+# scipy 1.1.0 (2018), neither of which installs on any currently supported
+# Python -- and setup.py never read that file anyway, so the pins were not even
+# enforced at install time. Exact pins belong in an application, not a library.
+dependencies = ["numpy>=1.20", "scipy>=1.5"]
+
+dynamic = ["version"]
+
+[project.optional-dependencies]
+dev = ["pytest>=7", "build", "twine"]
+
+[project.urls]
+Homepage = "https://github.com/josemiotto/pylevy"
+Documentation = "https://pylevy.readthedocs.io/en/latest/index.html"
+Source = "https://github.com/josemiotto/pylevy"
+Issues = "https://github.com/josemiotto/pylevy/issues"
+
+# Read statically from the AST, so building does not import levy -- and
+# therefore does not require numpy and scipy to already be installed. The old
+# setup.py did `import levy` at build time, which made a clean `pip install`
+# depend on the very packages it was supposed to be declaring.
+[tool.setuptools.dynamic]
+version = { attr = "levy.__version__" }
+
+# Explicit, because flat-layout auto-discovery sees both `levy/` and `tests/`
+# and refuses to guess.
+[tool.setuptools.packages.find]
+include = ["levy*"]
+namespaces = false
+
+[tool.setuptools.package-data]
+levy = ["*.npz"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = ["slow: fits and other cases that take more than a moment"]
