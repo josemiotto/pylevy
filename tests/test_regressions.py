@@ -17,12 +17,12 @@ import os
 import subprocess
 import sys
 import warnings
+from pathlib import Path
 
 import numpy as np
 import pytest
 
 import levy
-
 
 # --------------------------------------------------------------------------
 # Parameters.x setter (was: UnboundLocalError for anything but
@@ -154,21 +154,19 @@ def test_no_references_to_functions_that_do_not_exist():
     """`_limits()` and `change_par()` were referenced in commented-out code
     but have never existed anywhere in the package.
     """
-    with open(levy.__file__, encoding="utf-8") as handle:
-        source = handle.read()
+    source = Path(levy.__file__).read_text(encoding="utf-8")
     assert "_limits()" not in source
     assert "change_par(" not in source
 
 
 def test_library_code_does_not_print_to_stdout():
     """A library logs; it does not write to stdout. The __main__ block may."""
-    with open(levy.__file__, encoding="utf-8") as handle:
-        source = handle.read()
+    source = Path(levy.__file__).read_text(encoding="utf-8")
     body = source.split('if __name__ == "__main__":')[0]
     offending = [
         line.strip() for line in body.splitlines() if line.strip().startswith("print(")
     ]
-    assert not offending, "print() in library code: {}".format(offending)
+    assert not offending, f"print() in library code: {offending}"
 
 
 def test_module_logger_has_a_null_handler():
@@ -436,8 +434,7 @@ def test_sampler_has_no_single_letter_locals():
 
     import levy.sampling
 
-    with open(levy.sampling.__file__, encoding="utf-8") as handle:
-        source = handle.read()
+    source = Path(levy.sampling.__file__).read_text(encoding="utf-8")
     tree = ast.parse(source)
     offenders = set()
     for node in ast.walk(tree):
@@ -451,6 +448,4 @@ def test_sampler_has_no_single_letter_locals():
                     if isinstance(name, ast.Name) and len(name.id.lstrip("_")) <= 2:
                         offenders.add(name.id)
     offenders -= {"pi"}  # np.pi alias, reads fine
-    assert not offenders, "single/double-letter locals in the sampler: {}".format(
-        sorted(offenders)
-    )
+    assert not offenders, f"single/double-letter locals in the sampler: {sorted(offenders)}"

@@ -12,6 +12,7 @@ requires-python = ">=3.9"
 authors = [
     { name = "Paul Harrison" },
     { name = "José María Miotto", email = "josemiotto@gmail.com" },
+    { name = "Esteban Carisimo" },
 ]
 maintainers = [{ name = "José María Miotto", email = "josemiotto@gmail.com" }]
 keywords = [
@@ -45,6 +46,9 @@ dynamic = ["version"]
 
 [project.optional-dependencies]
 dev = ["pytest>=7", "build", "twine"]
+# Pinned to a minor series: ruff adds rules in every release, so an unpinned
+# floor turns a green branch red on somebody else's schedule.
+lint = ["ruff>=0.16,<0.17", "numpydoc>=1.6"]
 
 # Regenerates the lookup tables into a user cache directory. Replaces
 # `python -m levy build`, which wrote 24 MB into the installed package.
@@ -79,7 +83,49 @@ levy = ["data/*.npz", "data/manifest.json"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# So `pytest` works in a checkout with nothing installed, and so
+# `--doctest-modules src/levy` can find the package without a conftest of its
+# own. An installed copy still wins for `pip install`-based CI legs.
+pythonpath = ["src", "tests"]
 markers = [
     "slow: cases that take more than a moment",
     "build: regenerates lookup tables by quadrature; ~70s, run in its own CI job",
 ]
+
+# Docstring style. `D` is checked under the numpy convention, so ruff enforces
+# the section grammar; numpydoc (below) enforces that the sections agree with
+# the signature. Line length is 100 rather than 88: the numerical prose in
+# these docstrings, and the table in `_grid_index`, do not read well narrower.
+[tool.ruff]
+line-length = 100
+target-version = "py39"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "D", "UP", "B", "SIM"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "numpy"
+
+[tool.ruff.lint.per-file-ignores]
+# Test and script docstrings are notes to the next reader, not API reference;
+# the numpydoc grammar buys nothing there and `D` would only add noise.
+"tests/**" = ["D"]
+"scripts/**" = ["D"]
+"docs/**" = ["D"]   # Sphinx conf.py conventionally has no docstrings
+
+# numpydoc checks the docstring against the signature: every parameter present,
+# in order, with a type. Only `src/levy` is covered -- see the lint CI job.
+#
+# Listing a code after "all" turns it OFF. The four disabled here are the
+# maximalist ones:
+#   GL01  wants the summary on the line *after* the opening quotes, which is
+#         the exact opposite of ruff's D212. One of the two has to go.
+#   ES01  an extended summary on every private helper is padding.
+#   SA01  a See Also on every function is padding; the ones that help are there.
+#   EX01  an example on every function would mean examples for `_grid_shape`.
+[tool.numpydoc_validation]
+checks = ["all", "GL01", "ES01", "SA01", "EX01"]
+# __init__'s parameters are documented in the class docstring, per the numpydoc
+# style guide itself.
+exclude = ['\.__init__$']

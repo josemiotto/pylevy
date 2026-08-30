@@ -1,4 +1,3 @@
-# -*- encoding: utf-8 -*-
 #    Copyright (C) 2017 José M. Miotto
 #    This program is free software; you can redistribute it and/or modify
 #    it under the terms of the GNU General Public License as published by
@@ -14,39 +13,35 @@
 #    along with this program; if not, write to the Free Software
 #    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
-"""
-This is a package for calculation of Levy stable distributions
-(probability density function and cumulative density function) and for
-fitting these distributions to data.
+r"""Calculation and maximum-likelihood fitting of Levy alpha-stable distributions.
 
-It operates by interpolating values from a table, as direct computation
-of these distributions requires a lengthy numerical integration. This
-interpolation scheme allows fast fitting of data by Maximum Likelihood.
+Direct computation of these distributions requires a lengthy numerical
+integration, so the package interpolates values from a precomputed table
+instead. That is what makes fitting by maximum likelihood fast enough to be
+practical.
 
-Notes on the parameters
------------------------
-- the parameters of the Levy stable distribution can be given in multiple ways: parametrizations.
-  Here, you can use both parametrizations 0 and 1, in the notation of Nolan
-  (http://fs2.american.edu/jpnolan/www/stable/stable.html) and
-  parametrizations A, B and M from Zolotarev (Chance and Stability).
+Notes
+-----
+**Parametrizations.** The parameters of a Levy stable distribution can be
+written down in several ways. Available here are 0 and 1 in the notation of
+Nolan [1]_, and M, A and B from Zolotarev [2]_.
 
-- Nolan parametrizations are a bit easier to understand.
-  Parametrization 0 is typically preferred for numerical calculations, and
-  has :math:`E(X)=\\delta_0-\\beta\\gamma\\tan(\\pi\\alpha/2)` while
-  parametrization 1 is preferred for better intuition, since :math:`E(X)=\\delta_1`.
+Nolan's are the easier two to reason about. Parametrization 0 is typically
+preferred for numerical calculations and has
+:math:`E(X)=\delta_0-\beta\gamma\tan(\pi\alpha/2)`, while 1 is preferred for
+intuition, since :math:`E(X)=\delta_1`.
 
-- parametrizations are dealt automatically by the module, you just need
-  to specify which one you want to use. Also, you can use the function
-  Parameters.convert to transform the parameters from one parametrization
-  to another. The module uses internally parametrization 0.
+Parametrizations are handled by the module; you only say which one you are
+using. :meth:`~levy.parametrization.Parameters.convert` moves a parameter array
+between any two of them. Internally everything runs in parametrization 0, which
+is what the lookup tables are built in.
 
-- pylevy does not support alpha values lower than 0.5.
+``alpha`` below 0.5 is not supported: the tables do not cover it, and passing a
+smaller value raises :exc:`ValueError`.
 
-Module layout
--------------
-The implementation used to be a single 800-line ``__init__.py``. It is now
-split by concern, and this module re-exports the whole public surface, so
-``import levy`` behaves exactly as before:
+**Module layout.** The implementation used to be a single 800-line
+``__init__.py``. It is now split by concern, and this module re-exports the
+whole public surface, so ``import levy`` behaves exactly as before:
 
 ===================== =========================================================
 ``constants``         grid geometry, fit bounds, parametrization metadata
@@ -58,6 +53,23 @@ split by concern, and this module re-exports the whole public surface, so
 ``sampling``          ``random``
 ``_build``            offline table generation (only the CLI imports it)
 ===================== =========================================================
+
+References
+----------
+.. [1] J. P. Nolan, "Univariate Stable Distributions", Springer, 2020.
+       https://edspace.american.edu/jpnolan/stable/
+.. [2] V. M. Zolotarev, "One-dimensional Stable Distributions", AMS, 1986.
+
+Examples
+--------
+>>> import numpy as np
+>>> import levy
+>>> np.round(levy.levy(np.array([1.0, 2.0]), 1.5, 0.0, cdf=True), 6)
+array([0.756342, 0.89496 ])
+>>> np.random.seed(0)
+>>> x = levy.random(1.5, 0.0, 0.0, 1.0, shape=(200,))
+>>> levy.fit_levy(x)[0]
+par=0, alpha=1.52, beta=-0.08, mu=0.05, sigma=0.99
 """
 
 from levy._logging import logger  # noqa: F401  (re-exported)
@@ -79,7 +91,7 @@ from levy.distribution import (  # noqa: F401  (re-exported)
     neglog_levy,
 )
 from levy.fitting import fit_levy  # noqa: F401  (re-exported)
-from levy.interpolation import _interpolate, _reflect
+from levy.interpolation import _interpolate, _reflect  # noqa: F401  (re-exported)
 from levy.parametrization import (  # noqa: F401  (re-exported)
     Parameters,
     _phi,
@@ -92,15 +104,15 @@ from levy.sampling import (  # noqa: F401  (re-exported)
     random,
 )
 from levy.tables import (  # noqa: F401  (re-exported)
+    _CDF_TOLERANCE,
+    _TABLE_NAMES,
     PACKAGED_DATA,
     ROOT,
-    _CDF_TOLERANCE,
     _data_cache,
     _has_complete_tables,
     _load_table,
     _read_from_cache,
     _repair_table,
-    _TABLE_NAMES,
     data_dir,
     user_cache_dir,
 )
@@ -142,7 +154,27 @@ _MOVED_TO_BUILD = {
 
 
 def __getattr__(name):
+    """Resolve the table-generation helpers that moved into ``levy._build``.
+
+    PEP 562 module-level lookup, so ``levy._calculate_levy`` still works
+    without ``import levy`` pulling in ``scipy.integrate``.
+
+    Parameters
+    ----------
+    name : str
+        Attribute being looked up.
+
+    Returns
+    -------
+    object
+        The relocated helper.
+
+    Raises
+    ------
+    AttributeError
+        For any other name, as a module lookup normally would.
+    """
     if name in _MOVED_TO_BUILD:
         from levy import _build
         return getattr(_build, _MOVED_TO_BUILD[name])
-    raise AttributeError('module {!r} has no attribute {!r}'.format(__name__, name))
+    raise AttributeError(f'module {__name__!r} has no attribute {name!r}')
