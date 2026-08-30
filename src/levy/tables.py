@@ -1,4 +1,3 @@
-# -*- encoding: utf-8 -*-
 #    Copyright (C) 2017 José M. Miotto
 #    This program is free software; you can redistribute it and/or modify
 #    it under the terms of the GNU General Public License as published by
@@ -14,7 +13,15 @@
 #    along with this program; if not, write to the Free Software
 #    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
-"""Locating, loading, caching and repairing the lookup tables."""
+"""Locating, loading, caching and repairing the lookup tables.
+
+Attributes
+----------
+ROOT : str
+    Directory the installed package lives in.
+PACKAGED_DATA : str
+    Directory of the tables shipped inside the package.
+"""
 
 import os
 import sys
@@ -35,11 +42,20 @@ _data_cache = {}
 
 _TABLE_NAMES = ('pdf', 'cdf', 'lower_limit', 'upper_limit')
 
-def user_cache_dir():
-    """ Per-user directory where regenerated tables are looked for.
 
-    Resolved without a third-party dependency: XDG_CACHE_HOME or ~/.cache on
-    Unix, ~/Library/Caches on macOS, LOCALAPPDATA on Windows.
+def user_cache_dir():
+    """Return the per-user directory where regenerated tables are looked for.
+
+    Returns
+    -------
+    str
+        Path to the cache directory. It is not created here.
+
+    Notes
+    -----
+    Resolved without a third-party dependency: ``XDG_CACHE_HOME`` or
+    ``~/.cache`` on Unix, ``~/Library/Caches`` on macOS, ``LOCALAPPDATA`` on
+    Windows.
     """
     if sys.platform == 'win32':
         base = os.environ.get('LOCALAPPDATA') or os.path.expanduser(r'~\AppData\Local')
@@ -51,8 +67,21 @@ def user_cache_dir():
 
 
 def data_dir(writable=False):
-    """ Directory the lookup tables are read from.
+    """Return the directory the lookup tables are read from.
 
+    Parameters
+    ----------
+    writable : bool, default False
+        Ask for the directory a *new* build should be written to, rather than
+        the one the current tables are read from.
+
+    Returns
+    -------
+    str
+        Path to the directory.
+
+    Notes
+    -----
     Search order: ``$LEVY_DATA_DIR``, then the user cache directory if it holds
     a complete set, then the tables shipped inside the package.
 
@@ -77,24 +106,38 @@ def data_dir(writable=False):
 
 
 def _has_complete_tables(directory):
-    """ True if `directory` holds a usable set of tables, in either layout.
+    """Report whether `directory` holds a usable set of tables, in either layout.
 
-    The crossover limits ship as a single limits.npz with `lower` and `upper`
-    arrays; tables built by an older version have them as two separate files.
+    Parameters
+    ----------
+    directory : str
+        Directory to inspect. It need not exist.
+
+    Returns
+    -------
+    bool
+        True when the densities and the crossover limits are all present.
+
+    Notes
+    -----
+    The crossover limits ship as a single ``limits.npz`` with ``lower`` and
+    ``upper`` arrays; tables built by an older version have them as two
+    separate files.
     """
-    if not all(os.path.exists(os.path.join(directory, '{}.npz'.format(n)))
+    if not all(os.path.exists(os.path.join(directory, f'{n}.npz'))
                for n in ('pdf', 'cdf')):
         return False
     if os.path.exists(os.path.join(directory, 'limits.npz')):
         return True
-    return all(os.path.exists(os.path.join(directory, '{}.npz'.format(n)))
+    return all(os.path.exists(os.path.join(directory, f'{n}.npz'))
                for n in ('lower_limit', 'upper_limit'))
 
 
 # Cells of cdf.npz that scipy.integrate.quad failed to evaluate when the table
 # was generated. All four are at alpha index 4 (alpha = 0.58), beta indices 13
-# and 87 (beta = -+0.74), x indices 99 and 100 -- the two grid points closest to
-# x = 0, where the oscillatory weight used by _calculate_levy degenerates. They
+# and 87 (beta = -0.74 and +0.74), x indices 99 and 100 -- the two grid points
+# closest to x = 0, where the oscillatory weight used by _calculate_levy
+# degenerates. They
 # hold 5.72e+307 instead of a probability.
 #
 # This is not a storage error: _calculate_levy still returns 5.72e+307 for those
@@ -105,9 +148,24 @@ _CDF_TOLERANCE = 1e-6
 
 
 def _repair_table(key, table):
-    """ Replaces values the table generator failed to compute.
+    """Replace values the table generator failed to compute.
 
-    CDF cells outside [0, 1] (or non-finite) are replaced by linear
+    Parameters
+    ----------
+    key : {'pdf', 'cdf', 'lower_limit', 'upper_limit'}
+        Which table this is. Only ``'cdf'`` is inspected.
+    table : ndarray
+        The table as loaded from disk. Never modified in place.
+
+    Returns
+    -------
+    ndarray
+        `table` itself when there is nothing to repair, otherwise a repaired
+        copy.
+
+    Notes
+    -----
+    CDF cells outside ``[0, 1]`` (or non-finite) are replaced by linear
     interpolation along x, which is well justified here: the neighbours of the
     known-bad cells are smooth and about 0.0128 apart. A bad cell at either
     end of the x range has a usable neighbour on one side only and is copied
@@ -199,7 +257,19 @@ def _repair_table(key, table):
 
 
 def _read_from_cache(key):
-    """ Loads the file given by key """
+    """Return the named table, loading and repairing it on first use.
+
+    Parameters
+    ----------
+    key : {'pdf', 'cdf', 'lower_limit', 'upper_limit'}
+        Which table to return.
+
+    Returns
+    -------
+    ndarray
+        The table. The same object is handed out on every call, so callers must
+        treat it as read-only.
+    """
     try:
         return _data_cache[key]
     except KeyError:
@@ -211,9 +281,25 @@ def _read_from_cache(key):
 
 
 def _check_table_shape(key, table, directory):
-    """ Refuse a table whose shape does not match the pdf table's.
+    """Refuse a table whose shape does not match the pdf table's.
 
-    A directory is chosen by `data_dir()` on the strength of which files
+    Parameters
+    ----------
+    key : {'pdf', 'cdf', 'lower_limit', 'upper_limit'}
+        Which table this is. The pdf is the reference and is never refused.
+    table : ndarray
+        The table as loaded.
+    directory : str
+        Where it came from; named in the error.
+
+    Raises
+    ------
+    RuntimeError
+        If the shape does not agree with the pdf table's, naming both.
+
+    Notes
+    -----
+    A directory is chosen by :func:`data_dir` on the strength of which files
     exist, not what is in them, so a partial rebuild -- `levy-tables build
     --what pdf --size ...` into a cache that already held a full set -- could
     leave pdf.npz at one resolution next to a cdf and limits at another. The
@@ -227,29 +313,64 @@ def _check_table_shape(key, table, directory):
     expected = reference if key == 'cdf' else reference[1:]
     if tuple(table.shape) != tuple(expected):
         raise RuntimeError(
-            'the lookup tables in {} do not belong together: {} is {} but the pdf '
-            'table is {}. A partial rebuild has probably left tables of two '
-            'resolutions side by side; rebuild the whole set with `levy-tables '
-            'build`, or delete the directory to go back to the packaged tables.'.format(
-                directory, key, 'x'.join(map(str, table.shape)),
-                'x'.join(map(str, reference))))
+            f'the lookup tables in {directory} do not belong together: {key} is '
+            f'{"x".join(map(str, table.shape))} but the pdf table is '
+            f'{"x".join(map(str, reference))}. A partial rebuild has probably left '
+            f'tables of two resolutions side by side; rebuild the whole set with '
+            f'`levy-tables build`, or delete the directory to go back to the '
+            f'packaged tables.')
 
 
 def _load_table(directory, key):
-    """ Read one table from `directory`, in either storage layout.
+    """Read one table from `directory`, in either storage layout.
 
-    np.load returns a lazy NpzFile; the array is materialised and the archive
-    closed rather than leaking the handle until garbage collection.
+    Parameters
+    ----------
+    directory : str
+        Directory holding the ``.npz`` archives.
+    key : {'pdf', 'cdf', 'lower_limit', 'upper_limit'}
+        Which table to read.
+
+    Returns
+    -------
+    ndarray
+        The materialised array.
+
+    Notes
+    -----
+    ``np.load`` returns a lazy ``NpzFile``; the array is materialised and the
+    archive closed rather than leaking the handle until garbage collection.
     """
     if key in ('lower_limit', 'upper_limit'):
         merged = os.path.join(directory, 'limits.npz')
         if os.path.exists(merged):
             return _load_array(merged, directory, key.split('_')[0])
-    return _load_array(os.path.join(directory, '{}.npz'.format(key)), directory, None)
+    return _load_array(os.path.join(directory, f'{key}.npz'), directory, None)
 
 
 def _load_array(path, directory, name):
-    """ Read one array out of an archive, or say exactly why that failed. """
+    """Read one array out of an archive, or say exactly why that failed.
+
+    Parameters
+    ----------
+    path : str
+        The ``.npz`` archive to read.
+    directory : str
+        The directory ``data_dir()`` chose; only used to word the error.
+    name : str or None
+        Which array to take, or None for the archive's first (and only) one.
+
+    Returns
+    -------
+    ndarray
+        The materialised array.
+
+    Raises
+    ------
+    RuntimeError
+        If the archive is missing, empty, truncated, not an archive at all,
+        or lacks the array -- naming the file and what to do about it.
+    """
     try:
         with np.load(path) as archive:
             return archive[archive.files[0] if name is None else name]
@@ -278,17 +399,16 @@ def _unreadable_table(path, directory, error):
         do about it -- a bare ``BadZipFile: File is not a zip file`` from
         three frames down says none of those.
     """
-    what = 'cannot read the lookup table {} ({}: {}).'.format(
-        path, type(error).__name__, error)
+    what = f'cannot read the lookup table {path} ({type(error).__name__}: {error}).'
     if os.environ.get('LEVY_DATA_DIR'):
         return RuntimeError(
-            what + ' $LEVY_DATA_DIR points at {}; fix or rebuild the tables '
-            'there, or unset it to fall back to the packaged ones.'.format(directory))
+            f'{what} $LEVY_DATA_DIR points at {directory}; fix or rebuild the '
+            f'tables there, or unset it to fall back to the packaged ones.')
     if directory == PACKAGED_DATA:
         return RuntimeError(
-            what + ' This is the copy shipped inside the package, so the '
-            'installation itself is damaged; reinstall it.')
+            f'{what} This is the copy shipped inside the package, so the '
+            f'installation itself is damaged; reinstall it.')
     return RuntimeError(
-        what + ' The user cache at {} holds a table that cannot be read. Delete '
-        'that directory to go back to the packaged tables, or rerun '
-        '`levy-tables build`; `levy-tables where` shows which is in use.'.format(directory))
+        f'{what} The user cache at {directory} holds a table that cannot be '
+        f'read. Delete that directory to go back to the packaged tables, or '
+        f'rerun `levy-tables build`; `levy-tables where` shows which is in use.')
