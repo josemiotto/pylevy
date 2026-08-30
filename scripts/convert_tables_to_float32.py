@@ -46,16 +46,13 @@ def report(name, original):
         relative = np.abs(back - original) / np.maximum(np.abs(original), 1e-300)
     finite = np.isfinite(relative)
     print(
-        "  {:<12} max rel {:.3e}   p99.9 rel {:.3e}   max abs {:.3e}".format(
-            name,
-            relative[finite].max(),
-            np.percentile(relative[finite], 99.9),
-            np.abs(back - original).max(),
-        )
+        f"  {name:<12} max rel {relative[finite].max():.3e}"
+        f"   p99.9 rel {np.percentile(relative[finite], 99.9):.3e}"
+        f"   max abs {np.abs(back - original).max():.3e}"
     )
-    assert np.isfinite(converted).all(), "{} produced non-finite float32 values".format(name)
+    assert np.isfinite(converted).all(), f"{name} produced non-finite float32 values"
     positive_lost = int(((original > 0) & (converted == 0)).sum())
-    assert positive_lost == 0, "{}: {} positive values underflowed".format(name, positive_lost)
+    assert positive_lost == 0, f"{name}: {positive_lost} positive values underflowed"
     return converted
 
 
@@ -68,11 +65,11 @@ def main():
     args = parser.parse_args()
 
     for name in ("pdf", "cdf", "lower_limit", "upper_limit"):
-        if not os.path.exists(os.path.join(args.source, "{}.npz".format(name))):
-            print("no {}.npz in {}; point --source at the float64 archives".format(
-                name, args.source), file=sys.stderr)
+        if not os.path.exists(os.path.join(args.source, f"{name}.npz")):
+            print(f"no {name}.npz in {args.source}; point --source at the float64 archives",
+                  file=sys.stderr)
             return 2
-    print("reading float64 tables from {}".format(args.source))
+    print(f"reading float64 tables from {args.source}")
     pdf = load_legacy(args.source, "pdf")
     cdf = load_legacy(args.source, "cdf")
     lower = load_legacy(args.source, "lower_limit")
@@ -100,13 +97,16 @@ def main():
     # arrays. Merging them was proposed on the unmerged `dev` branch (3ab5d8e).
     _write_table(os.path.join(OUT_DIR, "limits.npz"), lower=lower32, upper=upper32)
 
-    write_manifest(OUT_DIR, extra={"source": "converted from the float64 tables", "dtype": "float32"})
+    write_manifest(
+        OUT_DIR,
+        extra={"source": "converted from the float64 tables", "dtype": "float32"},
+    )
 
-    print("\nwrote {}".format(OUT_DIR))
+    print(f"\nwrote {OUT_DIR}")
     before = sum(
-        os.path.getsize(os.path.join(args.source, "{}.npz".format(n)))
+        os.path.getsize(os.path.join(args.source, f"{n}.npz"))
         for n in ("pdf", "cdf", "lower_limit", "upper_limit")
-        if os.path.exists(os.path.join(args.source, "{}.npz".format(n)))
+        if os.path.exists(os.path.join(args.source, f"{n}.npz"))
     )
     after = sum(
         os.path.getsize(os.path.join(OUT_DIR, f))
@@ -114,14 +114,14 @@ def main():
         if f.endswith(".npz")
     )
     if before:
-        print("  {:.2f} MB -> {:.2f} MB  ({:.0f}% smaller)".format(
-            before / 1e6, after / 1e6, 100 * (1 - after / before)))
+        print(f"  {before / 1e6:.2f} MB -> {after / 1e6:.2f} MB  "
+              f"({100 * (1 - after / before):.0f}% smaller)")
     else:
-        # `before` is a filtered sum, so it is 0 once the float64 originals
-        # are gone -- on a tree where this already ran, or one checked out
-        # after the conversion landed. Nothing to compare against.
-        print("  wrote {:.2f} MB (no float64 originals here to compare "
-              "against)".format(after / 1e6))
+        # `before` is a filtered sum, so it is 0 once the float64 originals are
+        # gone -- on a tree where this already ran, or one checked out after the
+        # conversion landed. Nothing to compare against.
+        print(f"  wrote {after / 1e6:.2f} MB "
+              "(no float64 originals here to compare against)")
     return 0
 
 

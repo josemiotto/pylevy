@@ -54,7 +54,7 @@ def probe(interpreter):
         [interpreter, "-c", PROBE], capture_output=True, text=True, timeout=600
     )
     if completed.returncode != 0:
-        raise SystemExit("{} failed:\n{}".format(interpreter, completed.stderr))
+        raise SystemExit(f"{interpreter} failed:\n{completed.stderr}")
     return json.loads(completed.stdout)
 
 
