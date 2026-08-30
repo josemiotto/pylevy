@@ -25,13 +25,10 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
-      # Dependencies are installed directly rather than from requirements.txt,
-      # which pins numpy==1.15.0 / scipy==1.1.0 (2018) and cannot be installed
-      # on any currently supported Python.
-      - name: Install dependencies
+      - name: Install package and test dependencies
         run: |
           python -m pip install --upgrade pip
-          python -m pip install numpy scipy pytest
+          python -m pip install -e ".[dev]"
 
       - name: Show environment
         run: python -c "import numpy, scipy; print('numpy', numpy.__version__, '| scipy', scipy.__version__)"
@@ -51,11 +48,16 @@ jobs:
 
       # The package is still widely used with the NumPy 1.x series, and one
       # known bug (np.Inf, removed in NumPy 2.0) behaves differently there, so
-      # this leg keeps both paths honest.
+      # this leg keeps both paths honest. Constraints go first, then the package
+      # with --no-deps, so pip cannot quietly upgrade numpy back to 2.x.
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           python -m pip install "numpy<2" "scipy<1.12" pytest
+          python -m pip install -e . --no-deps
+
+      - name: Show environment
+        run: python -c "import numpy, scipy; print('numpy', numpy.__version__, '| scipy', scipy.__version__)"
 
       - name: Run tests
         run: python -m pytest tests/ -q
@@ -74,6 +76,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           python -m pip install "numpy==2.5.2" "scipy==1.18.1"
+          python -m pip install -e . --no-deps
 
       # Regenerates all 251 cases from scratch and compares them against the
       # committed file, so a reviewer can trust golden_v1.jsonl without reading

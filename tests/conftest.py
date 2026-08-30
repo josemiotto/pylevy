@@ -24,12 +24,6 @@ sys.path.insert(0, str(REPO_ROOT))
 sys.path.insert(0, str(TESTS_DIR / "golden"))
 
 
-def pytest_configure(config):
-    config.addinivalue_line(
-        "markers", "slow: fits and other cases that take more than a moment"
-    )
-
-
 @pytest.fixture(scope="session")
 def golden():
     """The committed golden records, keyed by case id."""
