@@ -53,6 +53,20 @@ TOLERANCES = {
     "levy": dict(rtol=1e-13, atol=1e-15),
     "convert": dict(rtol=1e-13, atol=1e-15),
     "random": dict(rtol=1e-12, atol=1e-15),
+    # The *skewed* cases with alpha within 1e-8 of 1: random()'s nudge branch
+    # evaluates tan(pi*alpha/2) close to its pole. Moving the nudge from
+    # 1e-15 to 1e-8 took the one-ULP sensitivity of phi from 11.4% down to
+    # 2.8e-08, which is a five-million-fold improvement but still not
+    # bit-reproducible: these cases differ by up to 2.17e-09 relative between
+    # macOS/arm64 and Linux/x86_64. They get their own tolerance rather than
+    # being dropped, because this is the branch that used to emit NaN at
+    # beta = +-1 and it needs coverage. 1e-6 leaves ~460x margin over the
+    # measured spread while staying far tighter than any real regression.
+    #
+    # Only beta != 0 lands here (see _cases.py): the sensitivity enters
+    # through beta * tan(pi*alpha/2), which is exactly zero at beta = 0, so
+    # the symmetric alpha ~ 1 draws are reproducible and stay in "random".
+    "random_alpha1": dict(rtol=1e-6, atol=1e-12),
     "fit": dict(rtol=1e-3, atol=1e-8),
 }
 
