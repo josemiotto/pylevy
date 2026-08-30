@@ -95,12 +95,104 @@ ROOT = os.path.dirname(os.path.abspath(__file__))
 _data_cache = {}
 
 
+# Cells of cdf.npz that scipy.integrate.quad failed to evaluate when the table
+# was generated. All four are at alpha index 4 (alpha = 0.58), beta indices 13
+# and 87 (beta = -+0.74), x indices 99 and 100 -- the two grid points closest to
+# x = 0, where the oscillatory weight used by _calculate_levy degenerates. They
+# hold 5.72e+307 instead of a probability.
+#
+# This is not a storage error: _calculate_levy still returns 5.72e+307 for those
+# arguments today, so regenerating the table with the same code reproduces them.
+# Repairing at load time keeps the fix independent of the 12 MB binary; the
+# generator needs its own fix before the tables are next rebuilt.
+_CDF_TOLERANCE = 1e-6
+
+
+def _repair_table(key, table):
+    """Replace values the table generator failed to compute.
+
+    A CDF cell counts as bad when it is non-finite, or when it lies outside
+    [0, 1] by more than `_CDF_TOLERANCE` -- the slack is there so that
+    ordinary rounding at the two ends is not mistaken for a failure. Bad
+    cells are replaced by linear interpolation along x, which is well
+    justified here: the neighbours of the known-bad cells are smooth and
+    about 0.0128 apart.
+    """
+    if key != 'cdf':
+        return table
+
+    bad = ~np.isfinite(table) | (table < -_CDF_TOLERANCE) | (table > 1.0 + _CDF_TOLERANCE)
+    if not bad.any():
+        return table
+
+    table = table.copy()
+    x_size = table.shape[0]
+    warned = set()
+    clipped = 0
+    for x_index, alpha_index, beta_index in np.argwhere(bad):
+        low = x_index
+        while low > 0 and bad[low - 1, alpha_index, beta_index]:
+            low -= 1
+        high = x_index
+        while high < x_size - 1 and bad[high + 1, alpha_index, beta_index]:
+            high += 1
+        left, right = low - 1, high + 1
+        if left < 0 and right > x_size - 1:
+            # Every cell in this column is unusable, so there is no good
+            # neighbour to interpolate or copy from -- and the copy below
+            # would index one past the end. Nothing can be recovered here.
+            # Once per column: an unusable column is unusable in every one
+            # of its x cells, and warning per cell would emit x_size copies
+            # of the same line.
+            clipped += 1
+            if (alpha_index, beta_index) not in warned:
+                warned.add((alpha_index, beta_index))
+                logger.warning(
+                    'cdf column alpha=%d beta=%d has no usable cell; '
+                    'leaving it clipped', alpha_index, beta_index)
+            table[x_index, alpha_index, beta_index] = np.clip(
+                table[x_index, alpha_index, beta_index], 0.0, 1.0)
+            continue
+        if left < 0 or right > x_size - 1:
+            table[x_index, alpha_index, beta_index] = np.clip(
+                table[left if left >= 0 else right, alpha_index, beta_index], 0.0, 1.0)
+            continue
+        weight = (x_index - left) / float(right - left)
+        table[x_index, alpha_index, beta_index] = (
+            (1.0 - weight) * table[left, alpha_index, beta_index]
+            + weight * table[right, alpha_index, beta_index]
+        )
+
+    interpolated = int(bad.sum()) - clipped
+    if interpolated:
+        logger.warning(
+            'Repaired %d unusable cell(s) in the shipped cdf table by '
+            'interpolating along x; these are quadrature failures from when '
+            'the table was generated. See '
+            'https://github.com/josemiotto/pylevy/issues/22',
+            interpolated,
+        )
+    if clipped:
+        # Not interpolated: these had no usable neighbour to interpolate
+        # from, so the line above must not count them as if they had.
+        logger.warning(
+            'A further %d cell(s) had no usable neighbour and were only '
+            'clipped into [0, 1]; those columns are not trustworthy.',
+            clipped,
+        )
+    return table
+
+
 def _read_from_cache(key):
     """ Loads the file given by key """
     try:
         return _data_cache[key]
     except KeyError:
-        _data_cache[key] = np.load(os.path.join(ROOT, '{}.npz'.format(key)))['arr_0']
+        # np.load returns a lazy NpzFile; materialise the array and let the
+        # archive close instead of leaking the handle until garbage collection.
+        with np.load(os.path.join(ROOT, '{}.npz'.format(key))) as archive:
+            table = archive['arr_0']
+        _data_cache[key] = _repair_table(key, table)
         return _data_cache[key]
 
 
