@@ -51,6 +51,7 @@ whole public surface, so ``import levy`` behaves exactly as before:
 ``distribution``      ``levy`` and ``neglog_levy``
 ``fitting``           ``fit_levy``
 ``sampling``          ``random``
+``api``               the typed API: ``pdf``/``cdf``/``logpdf``/``rvs``/``fit``
 ``_build``            offline table generation (only the CLI imports it)
 ===================== =========================================================
 
@@ -155,10 +156,11 @@ _MOVED_TO_BUILD = {
 
 
 def __getattr__(name):
-    """Resolve the table-generation helpers that moved into ``levy._build``.
+    """Resolve `levy.api`, and the helpers that moved into ``levy._build``.
 
     PEP 562 module-level lookup, so ``levy._calculate_levy`` still works
-    without ``import levy`` pulling in ``scipy.integrate``.
+    without ``import levy`` pulling in ``scipy.integrate``, and ``levy.api``
+    resolves without it pulling in pydantic.
 
     Parameters
     ----------
@@ -175,6 +177,9 @@ def __getattr__(name):
     AttributeError
         For any other name, as a module lookup normally would.
     """
+    if name == 'api':
+        import levy.api as api_module
+        return api_module
     if name in _MOVED_TO_BUILD:
         from levy import _build
         return getattr(_build, _MOVED_TO_BUILD[name])
