@@ -33,6 +33,14 @@ public name still works and still returns the same floats, bit for bit.
   did: for a package, `-m` requires `__main__.py`.
 - NumPy-style docstrings throughout, enforced by `ruff` (pydocstyle, numpy
   convention) and `numpydoc`, both gated in CI.
+- An optional `pandas` extra. `pdf`, `cdf` and `logpdf` accept a `Series` or a
+  `DataFrame` and return one carrying the same index; `fit` accepts a `Series`
+  or a single-column `DataFrame`, and `FitResult.to_series()` reports the
+  parameters under that parametrization's own names. The core never sees a
+  pandas object, and an install without the extra never imports pandas --
+  support is detected by looking in `sys.modules`, so the fast path is one
+  dictionary lookup. `tests/test_no_pandas.py` runs the whole API in a
+  subprocess with pandas blocked at the import system.
 
 ### Changed
 

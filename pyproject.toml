@@ -53,6 +53,10 @@ dev = ["pytest>=7", "build", "twine"]
 # Pinned to a minor series: ruff adds rules in every release, so an unpinned
 # floor turns a green branch red on somebody else's schedule.
 lint = ["ruff>=0.16,<0.17", "numpydoc>=1.6", "mypy>=1.8"]
+# Optional. Nothing in the core imports pandas, and nothing tries to: support
+# is detected by looking in sys.modules, so an install without this extra never
+# pays for it. See levy/_compat.py.
+pandas = ["pandas>=1.5"]
 
 # Regenerates the lookup tables into a user cache directory. Replaces
 # `python -m levy build`, which wrote 24 MB into the installed package.
@@ -150,7 +154,8 @@ exclude = ['\.__init__$']
 # tries. The annotations here are 3.9-safe by construction -- PEP 585 builtin
 # generics only, no `X | Y` -- and the 3.9 test leg is what proves it at run
 # time.
-files = ["src/levy/api.py", "src/levy/_typing.py"]
+files = ["src/levy/api.py", "src/levy/_typing.py", "src/levy/_compat.py",
+         "src/levy/_pandas.py"]
 mypy_path = "src"
 strict = true
 
@@ -172,6 +177,11 @@ module = [
     "levy._build.*",
     "levy._logging",
     "scipy.*",
+    # pandas ships no stubs by default and is an optional extra; requiring
+    # pandas-stubs to type-check the core would defeat the point of it being
+    # optional.
+    "pandas",
+    "pandas.*",
 ]
 ignore_missing_imports = true
 follow_imports = "skip"
