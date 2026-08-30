@@ -95,6 +95,13 @@ markers = [
     "slow: cases that take more than a moment",
     "build: regenerates lookup tables by quadrature; ~70s, run in its own CI job",
 ]
+# Most of this suite deliberately calls the 1.x spellings -- that is how the
+# goldens prove the 2.0 shims return identical numbers -- so their warnings are
+# expected, not a finding. tests/test_deprecations.py asserts them explicitly
+# with pytest.warns, which installs its own catcher and is unaffected by this.
+filterwarnings = [
+    "ignore:levy\\..* is deprecated:DeprecationWarning",
+]
 
 # Docstring style. `D` is checked under the numpy convention, so ruff enforces
 # the section grammar; numpydoc (below) enforces that the sections agree with

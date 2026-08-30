@@ -19,6 +19,19 @@ import time
 logger = logging.getLogger("levy._build")
 
 
+def _default_size():
+    """Return the grid size of the tables shipped with the package.
+
+    Returns
+    -------
+    tuple of int
+        ``levy.constants.size``.
+    """
+    from levy.constants import size
+
+    return size
+
+
 def _parse_size(text):
     """Parse an ``x,alpha,beta`` grid size from the command line.
 
@@ -88,7 +101,7 @@ def build(args):
     int
         Process exit status.
     """
-    from levy import data_dir
+    from levy.tables import data_dir
     from levy._build.tables import build_crossover_tables, build_density_tables, write_manifest
 
     out_dir = args.out or data_dir(writable=True)
@@ -103,7 +116,7 @@ def build(args):
             cdf_table = results["cdf"][0]
 
     if "limits" in args.what:
-        if cdf_table is None and args.size != tuple(__import__("levy").size):
+        if cdf_table is None and args.size != tuple(_default_size()):
             logger.error(
                 "--what limits at a non-default --size needs the cdf table from the same run; "
                 "add cdf to --what"
@@ -191,8 +204,7 @@ def main(argv=None):
         format="%(message)s",
     )
     if args.command == "build" and args.size is None:
-        import levy
-        args.size = tuple(levy.size)
+        args.size = tuple(_default_size())
     return args.func(args)
 
 
