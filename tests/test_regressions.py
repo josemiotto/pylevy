@@ -227,3 +227,41 @@ def test_neglog_levy_also_validates():
     """The fit path goes through neglog_levy, so it must reject too."""
     with pytest.raises(ValueError):
         levy.neglog_levy(np.array([1.0]), 0.4, 0.0, 0.0, 1.0)
+
+
+# --------------------------------------------------------------------------
+# random() at alpha == 2 (was: returned before mu and sigma were applied)
+# --------------------------------------------------------------------------
+
+
+def test_random_at_alpha_2_respects_location_and_scale():
+    """The alpha == 2 branch returned early, skipping `return mu + sigma * k`.
+
+    Observed before the fix: random(2.0, 0.0, mu=100.0, sigma=5.0) had
+    mean 0.002 and std 1.41 instead of 100 and 7.07.
+    """
+    np.random.seed(1)
+    sample = levy.random(2.0, 0.0, mu=100.0, sigma=5.0, shape=(200000,))
+    assert sample.mean() == pytest.approx(100.0, abs=0.1)
+    assert sample.std() == pytest.approx(5.0 * np.sqrt(2.0), rel=0.02)
+
+
+def test_random_at_alpha_2_is_a_location_scale_transform():
+    """Scaling must compose the same way it does for every other alpha."""
+    np.random.seed(0)
+    base = levy.random(2.0, 0.0, mu=0.0, sigma=1.0, shape=(1000,))
+    np.random.seed(0)
+    shifted = levy.random(2.0, 0.0, mu=5.0, sigma=3.0, shape=(1000,))
+    np.testing.assert_allclose(shifted, 5.0 + 3.0 * base, rtol=1e-14, atol=1e-14)
+
+
+def test_random_at_alpha_2_agrees_with_the_package_cdf():
+    """The sampler and the density must describe the same distribution."""
+    stats = pytest.importorskip("scipy.stats")
+    np.random.seed(2)
+    sample = levy.random(2.0, 0.0, mu=1.0, sigma=2.0, shape=(40000,))
+    result = stats.kstest(
+        sample,
+        lambda v: levy.levy(np.asarray(v, dtype=float), 2.0, 0.0, mu=1.0, sigma=2.0, cdf=True),
+    )
+    assert result.pvalue > 0.01, f"KS p={result.pvalue:.4g}"

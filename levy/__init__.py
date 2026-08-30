@@ -696,7 +696,11 @@ def random(alpha, beta, mu=0.0, sigma=1.0, shape=()):
     """
 
     if alpha == 2:
-        return np.random.standard_normal(shape) * np.sqrt(2.0)
+        # mu and sigma have to be applied here too. This branch used to return
+        # before reaching the `return mu + sigma * k` at the end of the
+        # function, so random(2.0, 0.0, mu=100, sigma=5) came back centred on
+        # zero with unit-ish scale.
+        return mu + sigma * np.random.standard_normal(shape) * np.sqrt(2.0)
 
     # Fails for alpha exactly equal to 1.0
     # but works fine for alpha infinitesimally greater or lower than 1.0

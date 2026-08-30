@@ -273,8 +273,8 @@ def _random_cases():
         # would be pinning noise. The defect itself is asserted in
         # test_known_bugs.py::test_alpha_1_skewed_sampler_is_well_conditioned.
         (1.9, 1.0, -3.0, 2.0),
-        (2.0, 0.0, 0.0, 1.0),  # normal branch; ignores mu/sigma today (bug a)
-        (2.0, 0.0, 5.0, 3.0),
+        (2.0, 0.0, 0.0, 1.0),  # normal branch, at the default mu/sigma
+        (2.0, 0.0, 5.0, 3.0),  # and away from it: this pair pins bug (a)
     )
     for seed in (0, 12345):
         for alpha, beta, mu, sigma in combos:

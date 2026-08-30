@@ -34,27 +34,6 @@ def _table(name):
 
 
 # --------------------------------------------------------------------------
-# (a) random() drops mu and sigma at alpha == 2
-# --------------------------------------------------------------------------
-
-
-@xfail
-def test_random_at_alpha_2_respects_location_and_scale():
-    """levy/__init__.py:607-608 returns before mu and sigma are applied.
-
-        if alpha == 2:
-            return np.random.standard_normal(shape) * np.sqrt(2.0)
-
-    Every other alpha ends at ``return mu + sigma * k`` (line 632). Observed:
-    ``random(2.0, 0.0, mu=100.0, sigma=5.0)`` has mean 0.002, std 1.41.
-    """
-    np.random.seed(0)
-    sample = levy.random(2.0, 0.0, mu=100.0, sigma=5.0, shape=(100000,))
-    assert sample.mean() == pytest.approx(100.0, abs=0.1)
-    assert sample.std() == pytest.approx(5.0 * np.sqrt(2.0), rel=0.02)
-
-
-# --------------------------------------------------------------------------
 # (c) the tail-crossover cell is truncated instead of rounded
 # --------------------------------------------------------------------------
 
