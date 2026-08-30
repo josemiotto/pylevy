@@ -183,3 +183,47 @@ def test_evaluating_levy_emits_no_output(capsys):
     captured = capsys.readouterr()
     assert captured.out == ""
     assert captured.err == ""
+
+
+# --------------------------------------------------------------------------
+# alpha/beta domain validation (was: out-of-range values silently indexed the
+# lookup tables from the wrong end)
+# --------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("alpha", [0.4, 0.0, -1.0, 2.5, 3.0, np.nan])
+def test_alpha_outside_the_supported_range_raises(alpha):
+    """alpha=0.4 used to give grid index -4 -- a valid *negative* index -- so
+    it silently returned the limits for alpha ~ 1.94 and produced
+    plausible-looking numbers identical to alpha=0.5. Only positive overflow
+    raised, and then as an IndexError from deep inside the lookup.
+    """
+    with pytest.raises(ValueError, match="alpha"):
+        levy.levy(np.array([1.0, 2.0]), alpha, 0.0)
+
+
+@pytest.mark.parametrize("beta", [-1.5, 1.5, 2.0, np.nan])
+def test_beta_outside_the_supported_range_raises(beta):
+    with pytest.raises(ValueError, match="beta"):
+        levy.levy(np.array([1.0, 2.0]), 1.5, beta)
+
+
+@pytest.mark.parametrize("alpha", [0.5, 0.7, 1.0, 1.5, 1.9, 2.0])
+@pytest.mark.parametrize("beta", [-1.0, 0.0, 1.0])
+def test_endpoints_of_the_supported_range_are_accepted(alpha, beta):
+    """The bounds are inclusive; validation must not reject the corners."""
+    result = levy.levy(np.array([0.5, 1.0]), alpha, beta)
+    assert np.all(np.isfinite(result))
+
+
+def test_validation_message_names_the_offending_parameter():
+    with pytest.raises(ValueError) as info:
+        levy.levy(np.array([1.0]), 0.3, 0.0)
+    message = str(info.value)
+    assert "alpha" in message and "0.3" in message
+
+
+def test_neglog_levy_also_validates():
+    """The fit path goes through neglog_levy, so it must reject too."""
+    with pytest.raises(ValueError):
+        levy.neglog_levy(np.array([1.0]), 0.4, 0.0, 0.0, 1.0)
