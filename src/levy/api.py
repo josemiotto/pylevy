@@ -57,12 +57,20 @@ ValidationError
 """
 
 import operator
-from typing import Any, cast
+from typing import Any, Optional, cast
 
 import numpy as np
 from pydantic import BaseModel, ConfigDict, Field
 
-from levy._typing import ArrayLike, FloatArray, Parametrization, ScalarOrArray, Seed, Size
+from levy._pandas import as_sample, labels_of, relabel
+from levy._typing import (
+    ArrayLike,
+    FloatArray,
+    Parametrization,
+    ScalarOrArray,
+    Seed,
+    Size,
+)
 from levy.constants import par_names
 from levy.distribution import levy as _levy
 from levy.fitting import fit_levy as _fit_levy
@@ -285,6 +293,43 @@ class FitResult(BaseModel):
     negative_log_likelihood: float
     parametrization: Parametrization = '0'
 
+    def to_series(self, par: Optional[Parametrization] = None) -> Any:
+        """Return the fitted parameters as a named pandas Series.
+
+        Parameters
+        ----------
+        par : {'0', '1', 'M', 'A', 'B'}, optional
+            Parametrization to report in. Defaults to the one the fit ran in,
+            which is what makes the index labels meaningful -- ``gamma`` and
+            ``lambda`` in M, A and B, ``mu`` and ``sigma`` in 0 and 1.
+
+        Returns
+        -------
+        pandas.Series
+            Four values, indexed by parameter name.
+
+        Raises
+        ------
+        ImportError
+            If pandas is not installed, naming the extra that provides it.
+        ValueError
+            If `par` is B and the fitted ``alpha`` is 1, where that
+            parametrization is singular (see :meth:`StableParams.to_par`).
+            A fit run in B with ``alpha`` pinned at 1 is the way to get there;
+            ask for another parametrization, ``to_series(par='0')`` say.
+
+        Notes
+        -----
+        The return type is not annotated as ``pandas.Series`` because pandas is
+        an optional extra and must not become a type-checking dependency.
+        """
+        from levy._compat import require
+
+        pandas = require('pandas')
+        par = self.parametrization if par is None else par
+        return pandas.Series(
+            list(self.params.to_par(par)), index=list(par_names[par]), name='levy')
+
     def as_par(self, par: Parametrization) -> tuple[float, float, float, float]:
         """Write the fitted parameters in another parametrization.
 
@@ -297,6 +342,12 @@ class FitResult(BaseModel):
         -------
         tuple of float
             The four fitted values in that parametrization.
+
+        Raises
+        ------
+        ValueError
+            If `par` is B and the fitted ``alpha`` is 1, where that
+            parametrization is singular; see :meth:`StableParams.to_par`.
         """
         return self.params.to_par(par)
 
@@ -325,6 +376,30 @@ def _narrow(value: Any) -> ScalarOrArray:
     if isinstance(value, np.ndarray):
         return cast(FloatArray, value)
     return float(value)
+
+
+def _labelled(values: Any, labels: dict[str, Any]) -> ScalarOrArray:
+    """Put pandas labels back on a result, and declare the type of the outcome.
+
+    Parameters
+    ----------
+    values : ndarray
+        The computed result.
+    labels : dict
+        The label description from :func:`levy._pandas.labels_of`.
+
+    Returns
+    -------
+    Series or DataFrame
+        Declared as ``ScalarOrArray``, which is a deliberate and localised
+        inaccuracy: what actually comes back is a pandas object. Expressing
+        that in the annotation would make pandas a type-checking dependency of
+        an *optional* extra. Every non-pandas call -- which is every call a
+        type checker will normally see -- really does return float or ndarray.
+        The docstrings of :func:`pdf`, :func:`cdf` and :func:`logpdf` say what
+        happens with pandas input.
+    """
+    return cast(ScalarOrArray, relabel(values, labels))
 
 
 def _validated(
@@ -362,8 +437,9 @@ def pdf(
 
     Parameters
     ----------
-    x : array_like
-        Points to evaluate at. A scalar input gives a float result.
+    x : array_like or Series or DataFrame
+        Points to evaluate at. A scalar input gives a float result; a pandas
+        object gives one back, carrying the same index.
     alpha : float
         Index of stability, in ``[0.5, 2]``.
     beta : float
@@ -377,8 +453,8 @@ def pdf(
 
     Returns
     -------
-    float or ndarray
-        The density at `x`.
+    float or ndarray, or Series or DataFrame
+        The density at `x`; a pandas object when `x` is one, with its index.
 
     Raises
     ------
@@ -397,7 +473,10 @@ def pdf(
     array([0.202038, 0.084539])
     """
     p = _validated(alpha, beta, mu, sigma, par)
-    return _narrow(_levy(x, p.alpha, p.beta, p.mu, p.sigma, cdf=False))
+    labels = labels_of(x)
+    values = _levy(np.asarray(x, dtype='d') if labels else x,
+                   p.alpha, p.beta, p.mu, p.sigma, cdf=False)
+    return _labelled(values, labels) if labels else _narrow(values)
 
 
 def cdf(
@@ -413,8 +492,9 @@ def cdf(
 
     Parameters
     ----------
-    x : array_like
-        Points to evaluate at. A scalar input gives a float result.
+    x : array_like or Series or DataFrame
+        Points to evaluate at. A scalar input gives a float result; a pandas
+        object gives one back, carrying the same index.
     alpha : float
         Index of stability, in ``[0.5, 2]``.
     beta : float
@@ -428,8 +508,9 @@ def cdf(
 
     Returns
     -------
-    float or ndarray
-        The distribution function at `x`.
+    float or ndarray, or Series or DataFrame
+        The distribution function at `x`; a pandas object when `x` is one,
+        with its index.
 
     Raises
     ------
@@ -447,7 +528,10 @@ def cdf(
     array([0.756342, 0.89496 ])
     """
     p = _validated(alpha, beta, mu, sigma, par)
-    return _narrow(_levy(x, p.alpha, p.beta, p.mu, p.sigma, cdf=True))
+    labels = labels_of(x)
+    values = _levy(np.asarray(x, dtype='d') if labels else x,
+                   p.alpha, p.beta, p.mu, p.sigma, cdf=True)
+    return _labelled(values, labels) if labels else _narrow(values)
 
 
 def logpdf(
@@ -463,8 +547,9 @@ def logpdf(
 
     Parameters
     ----------
-    x : array_like
-        Points to evaluate at.
+    x : array_like or Series or DataFrame
+        Points to evaluate at. A pandas object gives one back, carrying the
+        same index.
     alpha : float
         Index of stability, in ``[0.5, 2]``.
     beta : float
@@ -478,8 +563,8 @@ def logpdf(
 
     Returns
     -------
-    float or ndarray
-        ``log(pdf(x))``.
+    float or ndarray, or Series or DataFrame
+        ``log(pdf(x))``; a pandas object when `x` is one, with its index.
 
     See Also
     --------
@@ -499,8 +584,11 @@ def logpdf(
     array([-1.599299, -2.470541])
     """
     p = _validated(alpha, beta, mu, sigma, par)
-    values = _levy(x, p.alpha, p.beta, p.mu, p.sigma, cdf=False)
-    return _narrow(np.log(np.maximum(1e-100, values)))
+    labels = labels_of(x)
+    values = np.log(np.maximum(1e-100, _levy(
+        np.asarray(x, dtype='d') if labels else x,
+        p.alpha, p.beta, p.mu, p.sigma, cdf=False)))
+    return _labelled(values, labels) if labels else _narrow(values)
 
 
 def rvs(
@@ -604,8 +692,9 @@ def fit(
 
     Parameters
     ----------
-    x : array_like
-        The sample.
+    x : array_like or Series or DataFrame
+        The sample. A single-column DataFrame is unwrapped; a wider one is
+        rejected rather than silently pooled.
     par : {'0', '1', 'M', 'A', 'B'}, default '0'
         Parametrization to search in. It sets the feasible region and the
         starting point, so different choices can reach different optima.
@@ -683,7 +772,7 @@ def fit(
             f'{names[3]} must be strictly positive, got {fixed[names[3]]!r}'
         )
 
-    parameters, nll = _fit_levy(np.asarray(x, dtype='d'), par=par, **pinned)
+    parameters, nll = _fit_levy(as_sample(x), par=par, **pinned)
     alpha, beta, mu, sigma = (float(v) for v in parameters.get('0'))
     return FitResult(
         params=StableParams(alpha=alpha, beta=beta, mu=mu, sigma=sigma),

@@ -249,6 +249,57 @@ jobs:
       - name: mypy (typed surface)
         run: python -m mypy
 
+  extras:
+    name: optional extras
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # The five `test` legs above deliberately run *without* the extras, which
+      # is what proves an install without them works. This one is the other
+      # half: pandas installed, so tests/test_pandas.py actually runs instead of
+      # being skipped.
+      - name: Install package with extras
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev,pandas]"
+
+      # The extra must be declared in the package metadata, not merely be
+      # importable on this runner: `pip install ".[pandas]"` only *warns* when
+      # an extra does not exist, so a misspelt or dropped extra would otherwise
+      # pass here as long as pandas got installed some other way.
+      - name: The extras are declared in the package metadata
+        run: |
+          python - <<'PY'
+          import tomllib
+          from importlib.metadata import requires
+          with open("pyproject.toml", "rb") as handle:
+              name = tomllib.load(handle)["project"]["name"]
+          declared = requires(name) or []
+          for extra in ("pandas",):
+              assert any(f'extra == "{extra}"' in r for r in declared), (extra, declared)
+          print("extras declared:", sorted(r for r in declared if "extra ==" in r))
+          PY
+
+      # The optional suite is left out here and run exactly once below, where
+      # a skip is made visible and fatal.
+      - name: Run tests
+        run: python -m pytest tests/ -q -m "not build" --ignore=tests/test_pandas.py
+
+      # -rs prints every skip. test_pandas.py skips itself when pandas is
+      # missing, so any SKIPPED line means the extra did not install.
+      - name: pandas support is exercised, not skipped
+        run: |
+          # pipefail: without it the pipeline's status is tee's, and a failing
+          # pytest would pass this step as long as nothing was skipped.
+          set -o pipefail
+          python -m pytest tests/test_pandas.py -q -rs -p no:cacheprovider | tee optional.log
+          ! grep -q "SKIPPED" optional.log
+
   doctests:
     name: doctests
     runs-on: ubuntu-latest
