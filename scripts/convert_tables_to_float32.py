@@ -25,7 +25,7 @@ import sys
 
 import numpy as np
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "src"))
 
 import levy  # noqa: E402
 from levy._build.tables import _write_table, write_manifest  # noqa: E402
