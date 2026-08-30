@@ -43,6 +43,7 @@ Notes on the parameters
 - pylevy does not support alpha values lower than 0.5.
 """
 
+import logging
 import sys
 import os
 import numpy as np
@@ -50,6 +51,15 @@ from scipy.special import gamma
 from scipy import optimize
 
 __version__ = "1.1"
+
+# A library should not write to stdout. The NullHandler keeps this silent
+# unless the application configures logging, per the stdlib logging guidance.
+logger = logging.getLogger(__name__)
+# Guarded: this module can be imported more than once under a different
+# name, or reloaded, and an unguarded add would stack a NullHandler per
+# import on the same logger object.
+if not any(isinstance(h, logging.NullHandler) for h in logger.handlers):
+    logger.addHandler(logging.NullHandler())
 
 # Some constants of the program.
 # Dimensions: 0 - x, 1 - alpha, 2 - beta
@@ -89,14 +99,28 @@ def _read_from_cache(key):
 
 
 def _reflect(x, lower, upper):
-    """ Makes the parameters to be inside the bounds """
-    while 1:
-        if x < lower:
-            x = lower - (x - lower)
-        elif x > upper:
-            x = upper - (x - upper)
-        else:
-            return x
+    """ Folds a value back inside the bounds, reflecting at each edge.
+
+    The in-bounds case returns x unchanged and bit-identical, which is what
+    happens on essentially every call: L-BFGS-B already respects the bounds it
+    is given. Out of bounds, the fold is computed in closed form rather than by
+    repeated reflection, which used to be an unbounded `while 1:` loop -- with
+    the sigma bounds (1e-6, 1e10), reflecting 1e30 needs ~1e20 iterations and
+    never returns in practice.
+    """
+    if lower <= x <= upper:
+        return x
+
+    span = upper - lower
+    if span < 0:
+        raise ValueError(
+            "reflection bounds are reversed: lower={}, upper={}".format(lower, upper)
+        )
+    if span == 0:
+        return lower
+
+    offset = (x - lower) % (2.0 * span)
+    return lower + (2.0 * span - offset if offset > span else offset)
 
 
 def _interpolate(points, grid, lower, upper):
@@ -280,10 +304,31 @@ class Parameters(object):
 
     @x.setter
     def x(self, values):
-        if values.__class__.__name__ == 'OptimizeResult':
+        # Dispatch on the type rather than on its name, and reject anything
+        # else explicitly: without the else branch, `vals` stayed unbound and
+        # assigning e.g. a list raised UnboundLocalError instead of TypeError.
+        if isinstance(values, optimize.OptimizeResult):
             vals = values.x
-        elif values.__class__.__name__ == 'ndarray':
+        elif isinstance(values, np.ndarray):
             vals = values
+        elif isinstance(values, (list, tuple)):
+            vals = np.asarray(values, dtype='d')
+        else:
+            raise TypeError(
+                'expected an OptimizeResult, ndarray, list or tuple, '
+                'got {}'.format(type(values).__name__)
+            )
+        # One value per free parameter. Without this the loop below indexes off
+        # the end and reports a bare IndexError naming neither the setter nor
+        # the length it wanted.
+        if len(vals) != len(self.variables):
+            raise ValueError(
+                'expected {} value(s) for the free parameters {}, got {}'.format(
+                    len(self.variables),
+                    [self.pnames[i] for i in self.variables],
+                    len(vals)
+                )
+            )
         for j, i in enumerate(self.variables):
             self._x[i] = f_bounds[self.par][self.pnames[i]](vals[j])
 
@@ -328,14 +373,14 @@ def _calculate_levy(x, alpha, beta, cdf=False):
     if cdf:
         # Cumulative density function
         return (
-            integrate.quad(lambda u: u and func_cos(u) / u or 0.0, li, np.Inf, weight="sin", wvar=x, limlst=1000)[0]
-            + integrate.quad(lambda u: u and func_sin(u) / u or 0.0, li, np.Inf, weight="cos", wvar=x, limlst=1000)[0]
+            integrate.quad(lambda u: u and func_cos(u) / u or 0.0, li, np.inf, weight="sin", wvar=x, limlst=1000)[0]
+            + integrate.quad(lambda u: u and func_sin(u) / u or 0.0, li, np.inf, weight="cos", wvar=x, limlst=1000)[0]
             ) / np.pi + 0.5
     else:
         # Probability density function
         return (
-            integrate.quad(func_cos, li, np.Inf, weight="cos", wvar=x, limlst=1000)[0]
-            - integrate.quad(func_sin, li, np.Inf, weight="sin", wvar=x, limlst=1000)[0]
+            integrate.quad(func_cos, li, np.inf, weight="cos", wvar=x, limlst=1000)[0]
+            - integrate.quad(func_sin, li, np.inf, weight="sin", wvar=x, limlst=1000)[0]
             ) / np.pi
 
 
@@ -358,19 +403,19 @@ def _make_dist_data_file():
     xs, alphas, betas = [np.linspace(_lower[i], _upper[i], size[i], endpoint=True) for i in [0, 1, 2]]
     ts = np.tan(xs)
 
-    print("Generating pdf.npz ...")
+    logger.info("Generating pdf.npz ...")
     pdf = np.zeros(size, 'float64')
     for i, alpha in enumerate(alphas):
         for j, beta in enumerate(betas):
-            print("Calculating alpha={:.2f}, beta={:.2f}".format(alpha, beta))
+            logger.debug("Calculating alpha=%.2f, beta=%.2f", alpha, beta)
             pdf[:, i, j] = [_calculate_levy(t, alpha, beta, False) for t in ts]
     np.savez(os.path.join(ROOT, 'pdf.npz'), pdf)
 
-    print("Generating cdf.npz ...")
+    logger.info("Generating cdf.npz ...")
     cdf = np.zeros(size, 'float64')
     for i, alpha in enumerate(alphas):
         for j, beta in enumerate(betas):
-            print("Calculating alpha={:.2f}, beta={:.2f}".format(alpha, beta))
+            logger.debug("Calculating alpha=%.2f, beta=%.2f", alpha, beta)
             cdf[:, i, j] = [_calculate_levy(t, alpha, beta, True) for t in ts]
     np.savez(os.path.join(ROOT, 'cdf.npz'), cdf)
 
@@ -414,12 +459,12 @@ def _make_limit_data_files():
         limits = np.zeros(size[1:], 'float64')
         alphas, betas = [np.linspace(_lower[i], _upper[i], size[i], endpoint=True) for i in [1, 2]]
 
-        print("Generating {}_limit.npz ...".format(string))
+        logger.info("Generating %s_limit.npz ...", string)
 
         for i, alpha in enumerate(alphas):
             for j, beta in enumerate(betas):
                 limits[i, j] = _get_closest_approx(alpha, beta, upper=upper)
-                print("Calculating alpha={:.2f}, beta={:.2f}, limit={:.2f}".format(alpha, beta, limits[i, j]))
+                logger.debug("Calculating alpha=%.2f, beta=%.2f, limit=%.2f", alpha, beta, limits[i, j])
 
         np.savez(os.path.join(ROOT, '{}_limit.npz'.format(string)), limits)
 
@@ -461,7 +506,6 @@ def levy(x, alpha, beta, mu=0.0, sigma=1.0, cdf=False):
     loc = mu
 
     what = _read_from_cache('cdf') if cdf else _read_from_cache('pdf')
-    # limits = _limits()
     lower_limit = _read_from_cache('lower_limit')
     upper_limit = _read_from_cache('upper_limit')
 
@@ -469,13 +513,14 @@ def levy(x, alpha, beta, mu=0.0, sigma=1.0, cdf=False):
     alpha_index = int((alpha - _lower[1]) / (_upper[1] - _lower[1]) * (size[1] - 1))
     beta_index = int((beta - _lower[2]) / (_upper[2] - _lower[2]) * (size[2] - 1))
     try:
-        # lims = limits[alpha_index, beta_index]
         low_lims = lower_limit[alpha_index, beta_index]
         up_lims = upper_limit[alpha_index, beta_index]
     except IndexError:
-        print(alpha, alpha_index)
-        print(beta, beta_index)
-        print('This should not happen! If so, please open an issue in the pylevy github page please.')
+        logger.error(
+            'Grid index out of range: alpha=%s -> index %s, beta=%s -> index %s. '
+            'Please open an issue at https://github.com/josemiotto/pylevy/issues',
+            alpha, alpha_index, beta, beta_index,
+        )
         raise
     mask = (low_lims <= xr) & (xr <= up_lims)
     z = xr[mask]
@@ -559,8 +604,7 @@ def fit_levy(x, par='0', **kwargs):
     :rtype: tuple
     """
 
-    values = {par_name: None if par_name not in kwargs else kwargs[par_name] for i, par_name in
-              enumerate(par_names[par])}
+    values = {par_name: kwargs.get(par_name) for par_name in par_names[par]}
 
     parameters = Parameters(par=par, **values)
     temp = Parameters(par=par, **values)
@@ -603,7 +647,6 @@ def random(alpha, beta, mu=0.0, sigma=1.0, shape=()):
     :rtype: :class:`~numpy.ndarray`
     """
 
-    # loc = change_par(alpha, beta, mu, sigma, par, 0)
     if alpha == 2:
         return np.random.standard_normal(shape) * np.sqrt(2.0)
 
@@ -633,15 +676,17 @@ def random(alpha, beta, mu=0.0, sigma=1.0, shape=()):
 
 
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO, format='%(message)s')
+
     if "build" in sys.argv[1:]:
         _make_dist_data_file()
         _make_limit_data_files()
 
-    print("Testing fit_levy using parametrization 0 and fixed alpha (1.5).")
+    logger.info("Testing fit_levy using parametrization 0 and fixed alpha (1.5).")
 
     N = 1000
-    print("{} points, result should be (1.5, 0.5, 0.0, 1.0).".format(N))
-    x0 = random(1.5, 0.5, 0.0, 1.0, shape=(1000))
+    logger.info("%d points, result should be (1.5, 0.5, 0.0, 1.0).", N)
+    x0 = random(1.5, 0.5, 0.0, 1.0, shape=(N,))
 
     result0 = fit_levy(x0, par='0', alpha=1.5)
-    print(result0)
+    logger.info("%s", result0)
