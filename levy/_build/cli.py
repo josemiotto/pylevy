@@ -120,15 +120,38 @@ def where(args):
     import levy
 
     print("tables in use : {}".format(levy.data_dir()))
-    print("packaged      : {}".format(levy.ROOT))
+    print("packaged      : {}".format(levy.PACKAGED_DATA))
     print("user cache    : {}".format(levy.user_cache_dir()))
     print("LEVY_DATA_DIR : {}".format(os.environ.get("LEVY_DATA_DIR", "(unset)")))
-    for name in ("pdf", "cdf", "lower_limit", "upper_limit"):
-        path = os.path.join(levy.data_dir(), "{}.npz".format(name))
-        marker = "ok" if os.path.exists(path) else "MISSING"
-        size_mb = os.path.getsize(path) / 1e6 if os.path.exists(path) else 0.0
-        print("  {:<12} {:>6}  {:8.2f} MB".format(name, marker, size_mb))
-    return 0
+    directory = levy.data_dir()
+    if not os.path.isdir(directory):
+        print("  {} is not a directory".format(directory))
+        return 1
+
+    # The required set, each marked present or MISSING, rather than whatever
+    # happens to be in the directory: an override or cache that is incomplete
+    # should say which file is the problem. The crossover limits are one
+    # merged file; tables built by an older version have two.
+    expected = ["pdf.npz", "cdf.npz"]
+    legacy = ("lower_limit.npz", "upper_limit.npz")
+    # Either legacy file, not both: a split layout missing one half should be
+    # reported as that half missing, not as limits.npz missing.
+    if any(os.path.exists(os.path.join(directory, n)) for n in legacy) and \
+            not os.path.exists(os.path.join(directory, "limits.npz")):
+        expected.extend(legacy)
+    else:
+        expected.append("limits.npz")
+    missing = 0
+    for name in expected + ["manifest.json"]:
+        path = os.path.join(directory, name)
+        if os.path.exists(path):
+            print("  {:<16} {:8.2f} MB".format(name, os.path.getsize(path) / 1e6))
+        elif name == "manifest.json":
+            print("  {:<16} (none: not built by levy-tables)".format(name))
+        else:
+            print("  {:<16} MISSING".format(name))
+            missing += 1
+    return 1 if missing else 0
 
 
 def main(argv=None):
@@ -147,7 +170,8 @@ def main(argv=None):
                               help="worker processes; a full build is ~55 CPU-minutes")
     build_parser.set_defaults(func=build)
 
-    where_parser = subparsers.add_parser("where", help="show which tables are in use")
+    where_parser = subparsers.add_parser(
+        "where", help="show which tables are in use; exit status 1 if any is missing")
     where_parser.set_defaults(func=where)
 
     args = parser.parse_args(argv)

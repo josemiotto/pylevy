@@ -66,3 +66,29 @@ def seeded():
         np.random.seed(value)
 
     return _seed
+
+
+@pytest.fixture
+def packaged_tables(monkeypatch, tmp_path):
+    """Pin table lookup to the tables shipped inside the package.
+
+    Without this, a test that asserts something about "the tables" is really
+    asserting something about whatever the developer happens to have:
+    ``$LEVY_DATA_DIR`` may point anywhere, and a user cache holding a complete
+    set silently shadows the packaged ones -- possibly built at a different
+    resolution, possibly in the legacy split layout where the crossover limits
+    are two files rather than one.
+
+    ``_data_cache`` is cleared on both sides as well, so a table loaded by an
+    earlier test cannot satisfy a later one.
+    """
+    import levy
+
+    # data_dir() resolves user_cache_dir() from its own module globals, which is
+    # levy before the src/ split and levy.tables after it.
+    owner = sys.modules.get("levy.tables", levy)
+    monkeypatch.delenv("LEVY_DATA_DIR", raising=False)
+    monkeypatch.setattr(owner, "user_cache_dir", lambda: str(tmp_path / "no-cache"))
+    levy._data_cache.clear()
+    yield
+    levy._data_cache.clear()

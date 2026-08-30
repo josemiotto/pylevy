@@ -198,7 +198,9 @@ jobs:
       # The tests import from the working tree, so a package-data or
       # MANIFEST.in regression that dropped the lookup tables from the
       # artifacts would pass every other job and only be noticed by the first
-      # person to `pip install` the release. Look inside both files.
+      # person to `pip install` the release. Look inside both files, for the
+      # whole shipped layout: the densities, the merged crossover limits, and
+      # the manifest that records how they were built.
       - name: The lookup tables are inside both artifacts
         run: |
           python - <<'PY'
@@ -208,10 +210,10 @@ jobs:
           in_wheel = set(zipfile.ZipFile(wheel).namelist())
           with tarfile.open(sdist) as tar:
               in_sdist = set(tar.getnames())
-          for table in ("pdf.npz", "cdf.npz", "lower_limit.npz", "upper_limit.npz"):
+          for table in ("pdf.npz", "cdf.npz", "limits.npz", "manifest.json"):
               for kind, names in (("wheel", in_wheel), ("sdist", in_sdist)):
                   assert any(n.endswith("/" + table) for n in names), f"{table} is missing from the {kind}"
-          print("tables present:", sorted(n for n in in_wheel if n.endswith(".npz")))
+          print("shipped data present:", sorted(n for n in in_wheel if "/data/" in n))
           PY
 
   legacy-doctests:

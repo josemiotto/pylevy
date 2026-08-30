@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import gc
 import math
+import os
 import subprocess
 import sys
 import warnings
@@ -364,15 +365,31 @@ def test_alpha_1_is_continuous_with_its_neighbourhood():
 
 
 def test_loaded_cdf_table_is_a_probability():
-    """The table as *used* must be a CDF, even though the shipped file is not.
+    """The table as *used* must be a CDF, whatever the file holds.
 
-    Four cells of cdf.npz hold 5.72e+307; they are repaired when the table is
-    loaded. The file itself is still bad -- see test_known_bugs.py.
+    Four cells of the legacy float64 cdf.npz held 5.72e+307; the load-time
+    repair replaced them. The float32 conversion applied that repair at the
+    source, so the shipped file is clean (the next test) and the load-time
+    repair is a no-op on it -- kept for tables built by 1.x.
     """
     table = levy._read_from_cache("cdf")
     assert np.isfinite(table).all()
     assert table.min() >= -levy._CDF_TOLERANCE
     assert table.max() <= 1.0 + levy._CDF_TOLERANCE
+
+
+def test_shipped_cdf_file_holds_no_unusable_cells():
+    """Was a strict xfail in test_known_bugs.py while the float64 file still
+    held 5.72e+307 in four cells. The conversion to float32 repaired them at
+    the source, so the file itself -- read raw, without the load-time repair
+    -- is now a CDF. If this fails, a regenerated table has brought the
+    quadrature failure back.
+    """
+    with np.load(os.path.join(levy.PACKAGED_DATA, "cdf.npz")) as archive:
+        cdf = archive[archive.files[0]]
+    assert np.isfinite(cdf).all()
+    assert cdf.min() >= -levy._CDF_TOLERANCE
+    assert cdf.max() <= 1.0 + levy._CDF_TOLERANCE
 
 
 @pytest.mark.parametrize("beta", [-0.74, 0.74])
@@ -387,13 +404,17 @@ def test_repaired_cells_respect_skew_symmetry():
     """An independent check that the interpolated values are right.
 
     For a stable law, F(x; alpha, beta) = 1 - F(-x; alpha, -beta). The repair
-    fills the two beta = +-0.74 columns separately, so this holding to 1e-9 is
-    real evidence and not a tautology.
+    fills the two beta = +-0.74 columns separately, so this holding is real
+    evidence and not a tautology.
+
+    The tolerance is 1e-6 rather than 1e-9 because the tables are stored as
+    float32, whose ~6e-08 relative resolution is the floor on any identity of
+    this kind.
     """
     x = np.array([-2.0, -1.0, -0.5, 0.0, 0.5, 1.0, 2.0])
     positive = levy.levy(x, 0.58, 0.74, cdf=True)
     negative = levy.levy(-x[::-1], 0.58, -0.74, cdf=True)
-    np.testing.assert_allclose(positive, 1.0 - negative[::-1], rtol=0, atol=1e-9)
+    np.testing.assert_allclose(positive, 1.0 - negative[::-1], rtol=0, atol=1e-6)
 
 
 def test_repaired_column_is_monotone():
