@@ -3,7 +3,8 @@
 Every test here asserts the behaviour pylevy *should* have and is marked
 ``xfail(strict=True)``, so each one fails today and the suite turns red the
 moment a bug is fixed without its report being updated. That makes this file
-the checklist for the fix PRs that follow: fix the bug, delete the marker.
+the checklist for the fix PRs that follow. When a bug is fixed, its test
+moves to test_regressions.py and loses the marker.
 
 Each bug was reproduced against numpy 2.5.2 / scipy 1.18.1 on Python 3.12.
 Line references are to ``levy/__init__.py`` at the commit that added this file.
@@ -13,8 +14,6 @@ from __future__ import annotations
 
 import itertools
 import os
-import subprocess
-import sys
 
 import numpy as np
 import pytest
@@ -127,55 +126,6 @@ def test_tail_crossover_uses_the_nearest_grid_cell():
 
 
 # --------------------------------------------------------------------------
-# (d) Parameters.x setter has no else branch
-# --------------------------------------------------------------------------
-
-
-@xfail
-def test_parameters_x_setter_rejects_unsupported_types():
-    """levy/__init__.py:283-286 dispatches on ``values.__class__.__name__`` and
-    has no ``else``, so ``vals`` is unbound for any other type:
-
-        UnboundLocalError: cannot access local variable 'vals'
-
-    A list is a perfectly reasonable thing to assign here; it should raise
-    TypeError, not UnboundLocalError.
-    """
-    parameters = levy.Parameters(par="0", alpha=None, beta=None, mu=None, sigma=None)
-    with pytest.raises(TypeError):
-        parameters.x = [1.5, 0.0, 0.0, 1.0]
-
-
-@xfail
-def test_parameters_x_setter_accepts_a_sequence():
-    """Assigning a list should work, not raise."""
-    parameters = levy.Parameters(par="0", alpha=None, beta=None, mu=None, sigma=None)
-    parameters.x = [1.5, 0.0, 0.0, 1.0]
-    np.testing.assert_allclose(parameters.get("0"), [1.5, 0.0, 0.0, 1.0])
-
-
-# --------------------------------------------------------------------------
-# (f) _reflect never terminates for far-out-of-bounds input
-# --------------------------------------------------------------------------
-
-
-@xfail
-def test_reflect_terminates_for_far_out_of_bounds_input():
-    """levy/__init__.py:91-99 is a ``while 1:`` that folds by one interval per
-    iteration. With the sigma bounds (1e-6, 1e10) and x=1e30 that is ~1e20
-    iterations. Confirmed still running after 5 seconds in a subprocess.
-
-    ``Parameters.x`` is a public setter, so this is reachable from user code.
-    """
-    completed = subprocess.run(
-        [sys.executable, "-c", "import levy; levy._reflect(1e30, 1e-6, 1e10)"],
-        timeout=10,
-        capture_output=True,
-    )
-    assert completed.returncode == 0
-
-
-# --------------------------------------------------------------------------
 # (l) the alpha ~ 1 skewed sampler is ill-conditioned by construction
 # --------------------------------------------------------------------------
 
@@ -212,27 +162,6 @@ def test_alpha_1_skewed_sampler_is_well_conditioned():
         f"one ULP in alpha moves _phi by {relative_swing:.1%}; "
         f"tan(pi*alpha/2) = {np.tan(np.pi * alpha / 2):.3e}"
     )
-
-
-# --------------------------------------------------------------------------
-# (g) np.Inf was removed in NumPy 2
-# --------------------------------------------------------------------------
-
-
-@pytest.mark.xfail(
-    not hasattr(np, "Inf"),
-    strict=True,
-    reason="np.Inf was removed in NumPy 2.0; levy/__init__.py:331-338 still uses it",
-)
-def test_table_generation_works_on_numpy_2():
-    """levy/__init__.py:331,332,337,338 use ``np.Inf``, removed in NumPy 2.0 in
-    favour of ``np.inf``. This kills ``python -m levy build`` -- the only way to
-    regenerate the shipped tables -- on any current NumPy.
-
-    Conditional on the NumPy version so that the NumPy-1.x CI leg, where this
-    code still works, does not report a strict-xfail failure.
-    """
-    assert isinstance(levy._calculate_levy(1.0, 1.5, 0.0), float)
 
 
 # --------------------------------------------------------------------------
@@ -306,35 +235,3 @@ def test_cdf_is_monotone_across_the_tail_crossover():
         for alpha, beta in GRID
     )
     assert worst >= -1e-9
-
-
-# --------------------------------------------------------------------------
-# Source hygiene
-# --------------------------------------------------------------------------
-
-
-@xfail
-def test_no_references_to_functions_that_do_not_exist():
-    """levy/__init__.py:464 and 606 carry commented-out calls to ``_limits()``
-    and ``change_par()``; neither exists anywhere in the package.
-    """
-    source = open(levy.__file__).read()
-    assert "_limits()" not in source
-    assert "change_par(" not in source
-
-
-@xfail
-def test_library_code_does_not_print_to_stdout(capsys):
-    """levy/__init__.py:476-478 prints diagnostics from inside ``levy()``
-    before re-raising. A library should log, not print.
-    """
-    source = open(levy.__file__).read()
-    body = source.split('if __name__ == "__main__":')[0]
-    build_functions = ("_make_dist_data_file", "_make_limit_data_files")
-    offending = [
-        line.strip()
-        for line in body.splitlines()
-        if line.strip().startswith("print(")
-    ]
-    assert not offending, f"print() in library code: {offending}"
-    assert build_functions  # documented: prints inside the build path are fine
