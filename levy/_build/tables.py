@@ -98,15 +98,19 @@ def _map(function, items, jobs):
             yield function(item)
 
 
-def _write_table(path, array):
-    """Write `array` to `path` as a compressed archive, atomically.
+def _write_table(path, *arrays, **named):
+    """Write arrays to `path` as a compressed archive, atomically.
 
     Parameters
     ----------
     path : str
         Destination, ending in ``.npz``.
-    array : ndarray
-        The table to store, as the archive's single ``arr_0`` entry.
+    *arrays : ndarray
+        Positional arrays, stored as ``arr_0``, ``arr_1``, ...; a single table
+        is the usual case.
+    **named : ndarray
+        Arrays stored under their keyword, as the merged limits file does
+        with ``lower`` and ``upper``.
 
     Notes
     -----
@@ -122,7 +126,7 @@ def _write_table(path, array):
         # A file object rather than the name: given a name that does not end
         # in .npz, np.savez_compressed appends the extension itself.
         with open(temporary, 'wb') as handle:
-            np.savez_compressed(handle, array)
+            np.savez_compressed(handle, *arrays, **named)
         os.replace(temporary, path)
     finally:
         if os.path.exists(temporary):
@@ -178,10 +182,16 @@ def _crossover_cell(args):
 
 
 def build_crossover_tables(out_dir, grid_size=None, jobs=1, cdf_table=None):
-    """ Generate lower_limit.npz and upper_limit.npz into `out_dir`.
+    """ Generate limits.npz -- the `lower` and `upper` crossover arrays -- into `out_dir`.
 
     These say where levy() should stop interpolating and switch to the
     power-law tail, so they depend on the CDF table and must be rebuilt after it.
+
+    The two arrays go into one merged file, the layout the package ships. Any
+    lower_limit.npz / upper_limit.npz from an older build are removed at the
+    same time: the loader prefers the merged file, so a stale one left next to
+    freshly built split files would silently win -- and the reverse would leave
+    stale split files behind to confuse `levy-tables where`.
     """
     from levy import _read_from_cache
 
@@ -219,7 +229,7 @@ def build_crossover_tables(out_dir, grid_size=None, jobs=1, cdf_table=None):
     results = {}
     for upper in (True, False):
         name = 'upper' if upper else 'lower'
-        logger.info("Generating %s_limit.npz ...", name)
+        logger.info("Generating the %s crossover limits ...", name)
         cells = [(alpha, beta, upper, cdf_table) for alpha in alphas for beta in betas]
         limits = np.zeros(grid_size[1:], 'float64')
         for index, value in enumerate(_map(_crossover_cell, cells, jobs)):
@@ -227,8 +237,14 @@ def build_crossover_tables(out_dir, grid_size=None, jobs=1, cdf_table=None):
             limits[i, j] = value
             if index % 500 == 0:
                 logger.info("  %d/%d cells", index, len(cells))
-        _write_table(os.path.join(out_dir, '{}_limit.npz'.format(name)), limits)
         results['{}_limit'.format(name)] = limits
+    _write_table(os.path.join(out_dir, 'limits.npz'),
+                 lower=results['lower_limit'], upper=results['upper_limit'])
+    for stale in ('lower_limit.npz', 'upper_limit.npz'):
+        path = os.path.join(out_dir, stale)
+        if os.path.exists(path):
+            os.remove(path)
+            logger.info("Removed %s, superseded by limits.npz", stale)
     return results
 
 

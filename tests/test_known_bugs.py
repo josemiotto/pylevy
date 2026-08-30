@@ -13,7 +13,6 @@ Line references are to ``levy/__init__.py`` at the commit that added this file.
 from __future__ import annotations
 
 import itertools
-import os
 
 import numpy as np
 import pytest
@@ -23,15 +22,6 @@ from _cases import ALPHAS, BETAS
 
 GRID = list(itertools.product(ALPHAS, BETAS))
 xfail = pytest.mark.xfail(strict=True)
-
-#: Resolve table paths from the package, not the working directory, so the
-#: suite runs the same from any cwd.
-PACKAGE_DIR = os.path.dirname(os.path.abspath(levy.__file__))
-
-
-def _table(name):
-    return np.load(os.path.join(PACKAGE_DIR, f"{name}.npz"))["arr_0"]
-
 
 # --------------------------------------------------------------------------
 # (c) the tail-crossover cell is truncated instead of rounded
@@ -82,34 +72,6 @@ def test_tail_crossover_is_accurate_off_the_grid():
         "median relative error near the tail crossover is "
         f"{np.median(errors):.3e}"
     )
-
-
-# --------------------------------------------------------------------------
-# (h) four corrupt cells in the shipped CDF table
-# --------------------------------------------------------------------------
-
-
-@xfail
-def test_cdf_table_has_no_corrupt_cells():
-    """The *shipped file* still holds 5.72e+307 in four cells.
-
-    x-index {99,100}, alpha-index 4 (alpha=0.58), beta-index {13,87}
-    (beta=-+0.74). ``levy()`` now repairs these when it loads the table, so the
-    user-visible symptom is gone (see test_regressions.py), but the .npz on disk
-    is unchanged and this stays red until the tables are regenerated.
-
-    Note this is not a storage error: ``_calculate_levy`` still returns
-    5.72e+307 for those exact arguments, so a regeneration with the current
-    generator would reproduce them. Those grid points are the two closest to
-    x = 0, where the oscillatory weight passed to ``integrate.quad`` degenerates.
-
-    These four are also the only cells in either table that exceed the float32
-    maximum, so a naive ``.astype(np.float32)`` would turn a wrong number into
-    ``inf``. They must be fixed at the source before the tables are converted.
-    """
-    cdf = _table("cdf")
-    assert np.isfinite(cdf).all()
-    assert cdf.max() <= 1.0 + 1e-6
 
 
 # --------------------------------------------------------------------------

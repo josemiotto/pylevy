@@ -6,7 +6,8 @@ include LICENSE
 include README.md
 include pyproject.toml
 
-recursive-include levy *.npz
+recursive-include levy/data *.npz
+include levy/data/manifest.json
 
 recursive-include tests *.py
 include tests/golden/golden_v1.jsonl

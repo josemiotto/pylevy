@@ -27,10 +27,10 @@ TINY = (24, 10, 13)
 # --------------------------------------------------------------------------
 
 
-def test_data_dir_defaults_to_the_package(monkeypatch, tmp_path):
+def test_data_dir_defaults_to_the_packaged_tables(monkeypatch, tmp_path):
     monkeypatch.delenv("LEVY_DATA_DIR", raising=False)
     monkeypatch.setattr(levy, "user_cache_dir", lambda: str(tmp_path / "empty"))
-    assert levy.data_dir() == levy.ROOT
+    assert levy.data_dir() == levy.PACKAGED_DATA
 
 
 def test_data_dir_honours_the_environment_override(monkeypatch):
@@ -46,9 +46,22 @@ def test_data_dir_prefers_a_complete_cache(monkeypatch, tmp_path):
 
     # An incomplete cache must be ignored, not half-used.
     (cache / "pdf.npz").write_bytes(b"")
-    assert levy.data_dir() == levy.ROOT
+    assert levy.data_dir() == levy.PACKAGED_DATA
 
-    for name in levy._TABLE_NAMES:
+    # pdf + cdf + the merged limits file is a complete set.
+    (cache / "cdf.npz").write_bytes(b"")
+    assert levy.data_dir() == levy.PACKAGED_DATA
+    (cache / "limits.npz").write_bytes(b"")
+    assert levy.data_dir() == str(cache)
+
+
+def test_data_dir_accepts_the_legacy_split_limit_files(monkeypatch, tmp_path):
+    """Tables built before limits.npz existed must still be usable."""
+    monkeypatch.delenv("LEVY_DATA_DIR", raising=False)
+    cache = tmp_path / "legacy"
+    cache.mkdir()
+    monkeypatch.setattr(levy, "user_cache_dir", lambda: str(cache))
+    for name in ("pdf", "cdf", "lower_limit", "upper_limit"):
         (cache / "{}.npz".format(name)).write_bytes(b"")
     assert levy.data_dir() == str(cache)
 
@@ -102,18 +115,19 @@ def test_generated_table_matches_quadrature(tmp_path):
 
 @pytest.mark.build
 def test_build_writes_nothing_into_the_installed_package(tmp_path):
-    before = {
-        name: (lambda st: (st.st_mtime_ns, st.st_size))(
-            os.stat(os.path.join(levy.ROOT, "{}.npz".format(name))))
-        for name in levy._TABLE_NAMES
-    }
+    def snapshot():
+        # st_mtime_ns and st_size, not getmtime: getmtime is seconds-resolution
+        # on some filesystems, so a rewrite inside the same second would leave
+        # this test green while the build clobbered the installed package.
+        out = {}
+        for name in sorted(os.listdir(levy.PACKAGED_DATA)):
+            st = os.stat(os.path.join(levy.PACKAGED_DATA, name))
+            out[name] = (st.st_mtime_ns, st.st_size)
+        return out
+
+    before = snapshot()
     build_density_tables(str(tmp_path), TINY, jobs=1, what=("pdf",))
-    after = {
-        name: (lambda st: (st.st_mtime_ns, st.st_size))(
-            os.stat(os.path.join(levy.ROOT, "{}.npz".format(name))))
-        for name in levy._TABLE_NAMES
-    }
-    assert before == after
+    assert before == snapshot()
 
 
 @pytest.mark.build
@@ -160,13 +174,44 @@ def test_generated_tables_are_usable_via_the_environment_override(tmp_path, monk
 # --------------------------------------------------------------------------
 
 
-def test_cli_where_reports_the_search_path(capsys):
+def test_cli_where_reports_the_search_path(capsys, packaged_tables):
     assert main(["where"]) == 0
     output = capsys.readouterr().out
     assert "tables in use" in output
     assert "LEVY_DATA_DIR" in output
-    for name in levy._TABLE_NAMES:
-        assert name in output
+    assert "pdf.npz" in output and "cdf.npz" in output
+    assert "limits.npz" in output
+
+
+def test_cli_where_names_the_missing_tables(capsys, monkeypatch, tmp_path):
+    """`where` used to list whatever files were present, so an override
+    pointing at an incomplete directory gave no hint of what was missing.
+    """
+    (tmp_path / "pdf.npz").write_bytes(b"")
+    monkeypatch.setenv("LEVY_DATA_DIR", str(tmp_path))
+    assert main(["where"]) == 1
+    output = capsys.readouterr().out
+    assert "cdf.npz" in output and "MISSING" in output
+    assert "limits.npz" in output
+
+
+def test_cli_where_names_the_missing_half_of_a_split_layout(capsys, monkeypatch, tmp_path):
+    """With only one of the legacy limit files present, `where` used to report
+    limits.npz as missing instead of the legacy file that actually is.
+    """
+    for name in ("pdf.npz", "cdf.npz", "lower_limit.npz"):
+        (tmp_path / name).write_bytes(b"")
+    monkeypatch.setenv("LEVY_DATA_DIR", str(tmp_path))
+    assert main(["where"]) == 1
+    output = capsys.readouterr().out
+    assert "upper_limit.npz" in output and "MISSING" in output
+    assert "limits.npz" not in output.replace("lower_limit.npz", "").replace("upper_limit.npz", "")
+
+
+def test_cli_where_reports_a_path_that_is_not_a_directory(capsys, monkeypatch, tmp_path):
+    monkeypatch.setenv("LEVY_DATA_DIR", str(tmp_path / "nowhere"))
+    assert main(["where"]) == 1
+    assert "not a directory" in capsys.readouterr().out
 
 
 def test_cli_with_no_command_prints_help(capsys):
@@ -212,7 +257,8 @@ def test_limits_can_be_recomputed_for_an_existing_cdf(tmp_path):
     assert main(["build", "--out", str(tmp_path), "--size", "24,10,13", "--what", "cdf"]) == 0
     assert main(["build", "--out", str(tmp_path), "--size", "24,10,13", "--what", "limits"]) == 0
     names = {p.name for p in tmp_path.iterdir()}
-    assert "limits.npz" in names or {"lower_limit.npz", "upper_limit.npz"} <= names
+    assert "limits.npz" in names
+    assert not {"lower_limit.npz", "upper_limit.npz"} & names
 
 
 @pytest.mark.build
@@ -381,3 +427,22 @@ def test_python_dash_m_levy_build_still_builds(tmp_path):
     assert completed.returncode == 0, completed.stderr
     assert "superseded" in completed.stderr
     assert (tmp_path / "pdf.npz").exists()
+
+
+@pytest.mark.build
+def test_rebuilding_limits_removes_a_stale_split_layout(tmp_path):
+    """A cache built by an older version holds lower_limit.npz and
+    upper_limit.npz. Rebuilding into it must leave one layout, not two: the
+    loader prefers the merged file, so stale files of the other layout would
+    either shadow the new ones or be reported as present by `where`.
+    """
+    assert main(["build", "--out", str(tmp_path), "--size", "24,10,13", "--what", "cdf"]) == 0
+    for stale in ("lower_limit.npz", "upper_limit.npz"):
+        np.savez_compressed(str(tmp_path / stale), np.zeros((10, 13)))
+    assert main(["build", "--out", str(tmp_path), "--size", "24,10,13", "--what", "limits"]) == 0
+    names = {p.name for p in tmp_path.iterdir()}
+    assert "limits.npz" in names
+    assert not {"lower_limit.npz", "upper_limit.npz"} & names
+    with np.load(str(tmp_path / "limits.npz")) as archive:
+        assert set(archive.files) == {"lower", "upper"}
+        assert archive["lower"].shape == (10, 13)
