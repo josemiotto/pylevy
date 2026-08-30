@@ -263,24 +263,30 @@ def _random_cases():
         (1.5, 0.0, 0.0, 1.0),
         (1.5, 0.5, 0.0, 1.0),
         (0.7, -1.0, 2.0, 0.5),
-        # alpha == 1 with beta == 0 is stable: _phi() multiplies tan(pi/2) by
-        # zero, so the pole never reaches the sample.
         (1.0, 0.0, 0.0, 1.0),
-        # Deliberately NOT covered here: alpha ~ 1 with beta != 0. random()
-        # nudges alpha to 1.0 + 1e-15, which lands tan(pi*alpha/2) on its pole
-        # (-5.83e+14), where a single ULP moves _phi by 11.4%. The resulting
-        # samples are not reproducible across libm builds, so pinning them
-        # would be pinning noise. The defect itself is asserted in
-        # test_known_bugs.py::test_alpha_1_skewed_sampler_is_well_conditioned.
+        # alpha ~ 1 with beta != 0 goes through the alpha == 1 nudge. These
+        # were excluded while the nudge was 1e-15, because it put
+        # tan(pi*alpha/2) on its pole and a single ULP moved the result by
+        # 11.4% -- pinning them would have pinned libm noise. With the nudge at
+        # 1e-8 the one-ULP swing is 2.8e-08 and they are reproducible, so the
+        # branch is now covered. beta = +-1 is included specifically: it used to
+        # produce NaN for ~0.9% of draws.
+        (1.0, 0.3, 0.0, 1.0),
+        (1.0, 1.0, 0.0, 1.0),
+        (1.0, -1.0, 2.0, 0.5),
         (1.9, 1.0, -3.0, 2.0),
         (2.0, 0.0, 0.0, 1.0),  # normal branch, at the default mu/sigma
         (2.0, 0.0, 5.0, 3.0),  # and away from it: this pair pins bug (a)
     )
     for seed in (0, 12345):
         for alpha, beta, mu, sigma in combos:
+            # alpha within 1e-8 of 1 goes through the nudge branch, which is
+            # well conditioned now but still not bit-reproducible across libm
+            # builds; see TOLERANCES in _compare.py.
+            near_alpha_1 = abs(alpha - 1.0) < levy._ALPHA_1_RADIUS and beta != 0.0
             yield Case(
                 id=f"random/seed{seed}/a{alpha}/b{beta}/mu{mu}/s{sigma}",
-                group="random",
+                group="random_alpha1" if near_alpha_1 else "random",
                 run=(
                     lambda a=alpha, b=beta, m=mu, s=sigma, sd=seed: (
                         np.random.seed(sd),
