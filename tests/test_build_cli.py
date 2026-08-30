@@ -16,6 +16,7 @@ import numpy as np
 import pytest
 
 import levy
+import levy.tables
 from levy._build.cli import main
 from levy._build.tables import build_crossover_tables, build_density_tables, write_manifest
 
@@ -29,7 +30,7 @@ TINY = (24, 10, 13)
 
 def test_data_dir_defaults_to_the_packaged_tables(monkeypatch, tmp_path):
     monkeypatch.delenv("LEVY_DATA_DIR", raising=False)
-    monkeypatch.setattr(levy, "user_cache_dir", lambda: str(tmp_path / "empty"))
+    monkeypatch.setattr(levy.tables, "user_cache_dir", lambda: str(tmp_path / "empty"))
     assert levy.data_dir() == levy.PACKAGED_DATA
 
 
@@ -42,7 +43,7 @@ def test_data_dir_prefers_a_complete_cache(monkeypatch, tmp_path):
     monkeypatch.delenv("LEVY_DATA_DIR", raising=False)
     cache = tmp_path / "cache"
     cache.mkdir()
-    monkeypatch.setattr(levy, "user_cache_dir", lambda: str(cache))
+    monkeypatch.setattr(levy.tables, "user_cache_dir", lambda: str(cache))
 
     # An incomplete cache must be ignored, not half-used.
     (cache / "pdf.npz").write_bytes(b"")
@@ -60,7 +61,7 @@ def test_data_dir_accepts_the_legacy_split_limit_files(monkeypatch, tmp_path):
     monkeypatch.delenv("LEVY_DATA_DIR", raising=False)
     cache = tmp_path / "legacy"
     cache.mkdir()
-    monkeypatch.setattr(levy, "user_cache_dir", lambda: str(cache))
+    monkeypatch.setattr(levy.tables, "user_cache_dir", lambda: str(cache))
     for name in ("pdf", "cdf", "lower_limit", "upper_limit"):
         (cache / "{}.npz".format(name)).write_bytes(b"")
     assert levy.data_dir() == str(cache)
@@ -69,7 +70,7 @@ def test_data_dir_accepts_the_legacy_split_limit_files(monkeypatch, tmp_path):
 def test_writable_data_dir_is_never_the_installed_package(monkeypatch, tmp_path):
     """Building must not write into site-packages, as `python -m levy build` did."""
     monkeypatch.delenv("LEVY_DATA_DIR", raising=False)
-    monkeypatch.setattr(levy, "user_cache_dir", lambda: str(tmp_path / "cache"))
+    monkeypatch.setattr(levy.tables, "user_cache_dir", lambda: str(tmp_path / "cache"))
     assert levy.data_dir(writable=True) != levy.ROOT
 
 
@@ -157,10 +158,11 @@ def test_generated_tables_are_usable_via_the_environment_override(tmp_path, monk
         "import numpy as np, levy;"
         "print(float(levy.levy(np.array([1.0]), 1.5, 0.0)[0]))"
     )
-    # Not os.getcwd(): pytest can be invoked from anywhere, and the child
-    # would then import a different levy, or none at all.
-    repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    env = dict(os.environ, LEVY_DATA_DIR=str(tmp_path), PYTHONPATH=repo_root)
+    # Derived from the package location, not os.getcwd(): pytest can be
+    # invoked from anywhere, and after the src/ move the importable root is
+    # src/ rather than the repository root.
+    env = dict(os.environ, LEVY_DATA_DIR=str(tmp_path),
+               PYTHONPATH=os.path.dirname(levy.__path__[0]))
     completed = subprocess.run([sys.executable, "-c", script], env=env,
                                capture_output=True, text=True, timeout=120)
     assert completed.returncode == 0, completed.stderr
@@ -243,7 +245,7 @@ def test_python_dash_m_levy_works(tmp_path):
     completed = subprocess.run(
         [sys.executable, "-m", "levy", "where"],
         capture_output=True, text=True, timeout=120,
-        env=dict(os.environ, PYTHONPATH=os.getcwd()),
+        env=dict(os.environ, PYTHONPATH=os.path.dirname(levy.__path__[0])),
     )
     assert completed.returncode == 0, completed.stderr
     assert "tables in use" in completed.stdout

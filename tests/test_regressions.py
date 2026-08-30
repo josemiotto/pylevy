@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import gc
 import math
+import os
 import subprocess
 import sys
 import warnings
@@ -91,6 +92,7 @@ def test_reflect_terminates_for_far_out_of_bounds_input():
         timeout=30,
         capture_output=True,
         text=True,
+        env=dict(os.environ, PYTHONPATH=os.path.dirname(levy.__path__[0])),
     )
     assert completed.returncode == 0, completed.stderr
     assert 1e-6 <= float(completed.stdout) <= 1e10
