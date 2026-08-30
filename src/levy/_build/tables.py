@@ -18,8 +18,9 @@ import sys
 
 import numpy as np
 
-from levy import _approximate, _lower, _upper, size
 from levy._build.quadrature import calculate_levy, interpolated_levy
+from levy.constants import _lower, _upper, size
+from levy.distribution import _approximate
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +41,7 @@ def grid_axes(grid_size=None):
     Parameters
     ----------
     grid_size : tuple of int, optional
-        Shape to build. Defaults to the shipped ``levy.size``.
+        Shape to build. Defaults to the shipped ``levy.constants.size``.
 
     Returns
     -------
@@ -199,7 +200,7 @@ def build_density_tables(out_dir, grid_size=None, jobs=1, what=("pdf", "cdf")):
     out_dir : str
         Directory to write into. Created if missing.
     grid_size : tuple of int, optional
-        Shape to build. Defaults to the shipped ``levy.size``.
+        Shape to build. Defaults to the shipped ``levy.constants.size``.
     jobs : int, default 1
         Worker processes. A full build is ~25 CPU-minutes.
     what : sequence of {'pdf', 'cdf'}, default ('pdf', 'cdf')
@@ -272,7 +273,7 @@ def build_crossover_tables(out_dir, grid_size=None, jobs=1, cdf_table=None):
     out_dir : str
         Directory to write into. Created if missing.
     grid_size : tuple of int, optional
-        Shape to build. Defaults to the shipped ``levy.size``.
+        Shape to build. Defaults to the shipped ``levy.constants.size``.
     jobs : int, default 1
         Worker processes. A full build is ~30 CPU-minutes.
     cdf_table : ndarray, optional
@@ -304,7 +305,7 @@ def build_crossover_tables(out_dir, grid_size=None, jobs=1, cdf_table=None):
     next to freshly built split files would silently win -- and the reverse
     would leave stale split files behind to confuse ``levy-tables where``.
     """
-    from levy import _read_from_cache
+    from levy.tables import _read_from_cache
 
     grid_size = tuple(grid_size or size)
     _, alphas, betas = grid_axes(grid_size)
@@ -367,7 +368,7 @@ def write_manifest(out_dir, grid_size=None, extra=None):
     out_dir : str
         Directory holding the tables. ``manifest.json`` is written here.
     grid_size : tuple of int, optional
-        Shape the tables were built at. Defaults to the shipped ``levy.size``.
+        Shape the tables were built at. Defaults to the shipped ``levy.constants.size``.
     extra : dict, optional
         Additional keys to merge into the manifest.
 
