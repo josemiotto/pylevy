@@ -62,6 +62,7 @@ from typing import Any, Optional, cast
 import numpy as np
 from pydantic import BaseModel, ConfigDict, Field
 
+from levy import backends
 from levy._pandas import as_sample, labels_of, relabel
 from levy._typing import (
     ArrayLike,
@@ -378,6 +379,117 @@ def _narrow(value: Any) -> ScalarOrArray:
     return float(value)
 
 
+def _plain(value: Any) -> Any:
+    """Reduce a parameter to a plain float for validation, if it is one.
+
+    Parameters
+    ----------
+    value : object
+        A parameter as the caller wrote it: a float, or a zero-dimensional
+        tensor when they are differentiating through it.
+
+    Returns
+    -------
+    float or object
+        A float when one can be read out without side effects, otherwise
+        `value` unchanged, so that validation reports on what it really got.
+    """
+    if isinstance(value, (int, float)):
+        return float(value)
+    item = getattr(value, 'item', None)
+    if item is not None and getattr(value, 'ndim', 1) == 0:
+        try:
+            return float(item())
+        except (TypeError, ValueError, RuntimeError):
+            return value
+    return value
+
+
+def _dispatch(
+    backend: Optional[str],
+    par: Parametrization,
+    x: Any,
+    alpha: Any,
+    beta: Any,
+    mu: Any,
+    sigma: Any,
+) -> Any:
+    """Choose a backend, and check that the request is one it can serve.
+
+    Parameters
+    ----------
+    backend : str or None
+        An explicit choice, or None for automatic selection.
+    par : {'0', '1', 'M', 'A', 'B'}
+        Parametrization the parameters are written in.
+    x : object
+        The evaluation points, inspected for tensors.
+    alpha, beta, mu, sigma : object
+        The parameters, inspected for tensors.
+
+    Returns
+    -------
+    module
+        The backend module to evaluate with.
+
+    Raises
+    ------
+    ValueError
+        If tensor parameters are given in a parametrization other than 0 --
+        the conversion between parametrizations runs in NumPy, so routing
+        tensors through it would cut the gradient without saying so -- or if
+        `x` is a pandas object and the backend is not NumPy, since its labels
+        could not be put back on a tensor.
+    """
+    module = backends.get(backend, x, alpha, beta, mu, sigma)
+    if module.name != 'numpy' and labels_of(x):
+        # A labelled result would have to be a Series or DataFrame, and that
+        # cannot carry a tensor's gradient; converting silently would drop
+        # the labels the caller passed in on purpose. Say so instead.
+        raise ValueError(
+            f'pandas input cannot be evaluated on the {module.name} backend: the '
+            f'labels cannot be put back on a tensor. Pass x.to_numpy() to get a '
+            f'tensor back, or use NumPy parameters to keep the labels.'
+        )
+    if module.name != 'numpy' and par != '0':
+        # Tensor-ness, not float-readability: a zero-dimensional tensor reads
+        # as a float perfectly well, and converting it is exactly the silent
+        # gradient cut this refuses to make.
+        tensors = [label for label, value in
+                   (('alpha', alpha), ('beta', beta), ('mu', mu), ('sigma', sigma))
+                   if backends._is_tensor(value)]
+        if tensors:
+            raise ValueError(
+                f'the {module.name} backend needs parametrization 0 for tensor '
+                f'parameters ({", ".join(tensors)} given in {par!r}). The '
+                f'conversion between parametrizations runs in NumPy, so it '
+                f'would cut the gradient without saying so. Convert first with '
+                f'StableParams.from_par, or work in parametrization 0.'
+            )
+    return module
+
+
+def _from_backend(value: Any) -> ScalarOrArray:
+    """Declare the type of a non-default backend's result.
+
+    Parameters
+    ----------
+    value : object
+        Whatever the backend returned -- a ``torch.Tensor`` for the torch
+        backend.
+
+    Returns
+    -------
+    float or ndarray
+        Declared, not checked. The same localised inaccuracy as
+        :func:`_labelled`, and for the same reason: torch is an optional extra
+        and must not become a type-checking dependency. Every call a type
+        checker will normally see uses the NumPy backend and really does return
+        float or ndarray.
+    """
+    return cast(ScalarOrArray, value)
+
+
 def _labelled(values: Any, labels: dict[str, Any]) -> ScalarOrArray:
     """Put pandas labels back on a result, and declare the type of the outcome.
 
@@ -400,6 +512,38 @@ def _labelled(values: Any, labels: dict[str, Any]) -> ScalarOrArray:
         happens with pandas input.
     """
     return cast(ScalarOrArray, relabel(values, labels))
+
+
+def _for_backend(
+    p: StableParams, alpha: Any, beta: Any, mu: Any, sigma: Any
+) -> tuple[Any, Any, Any, Any]:
+    """Pick what a non-NumPy backend evaluates with.
+
+    Parameters
+    ----------
+    p : StableParams
+        The validated parameters, in parametrization 0.
+    alpha, beta, mu, sigma : object
+        The parameters as the caller gave them.
+
+    Returns
+    -------
+    tuple
+        For each parameter: the caller's own object if it is a tensor, so its
+        gradient survives; otherwise the validated value in parametrization 0.
+
+    Notes
+    -----
+    :func:`_dispatch` has already refused tensors outside parametrization 0,
+    so a call made in another parametrization always reaches the backend
+    converted. It used to be handed the caller's values unchanged, which
+    evaluated a request in B as if it had been made in 0.
+    """
+    chosen = [
+        given if backends._is_tensor(given) else validated
+        for given, validated in ((alpha, p.alpha), (beta, p.beta), (mu, p.mu), (sigma, p.sigma))
+    ]
+    return chosen[0], chosen[1], chosen[2], chosen[3]
 
 
 def _validated(
@@ -432,6 +576,7 @@ def pdf(
     mu: float = 0.0,
     sigma: float = 1.0,
     par: Parametrization = '0',
+    backend: Optional[str] = None,
 ) -> ScalarOrArray:
     """Evaluate the probability density function.
 
@@ -450,6 +595,12 @@ def pdf(
         Scale, strictly positive.
     par : {'0', '1', 'M', 'A', 'B'}, default '0'
         Parametrization the four parameters are written in.
+    backend : {'numpy', 'torch'}, optional
+        Which array library evaluates this. The default picks torch when any
+        argument is a ``torch.Tensor``, and NumPy otherwise. Tensor parameters
+        carry gradients through the result. pandas input is NumPy-only: its
+        labels cannot be put back on a tensor, so it is refused rather than
+        silently unlabelled.
 
     Returns
     -------
@@ -472,7 +623,11 @@ def pdf(
     >>> np.round(pdf(np.array([1.0, 2.0]), alpha=1.5, beta=0.0), 6)
     array([0.202038, 0.084539])
     """
-    p = _validated(alpha, beta, mu, sigma, par)
+    module = _dispatch(backend, par, x, alpha, beta, mu, sigma)
+    p = _validated(_plain(alpha), _plain(beta), _plain(mu), _plain(sigma), par)
+    if module.name != 'numpy':
+        return _from_backend(module.pdf(x, *_for_backend(p, alpha, beta, mu, sigma)))
+
     labels = labels_of(x)
     values = _levy(np.asarray(x, dtype='d') if labels else x,
                    p.alpha, p.beta, p.mu, p.sigma, cdf=False)
@@ -487,6 +642,7 @@ def cdf(
     mu: float = 0.0,
     sigma: float = 1.0,
     par: Parametrization = '0',
+    backend: Optional[str] = None,
 ) -> ScalarOrArray:
     """Evaluate the cumulative distribution function.
 
@@ -505,6 +661,12 @@ def cdf(
         Scale, strictly positive.
     par : {'0', '1', 'M', 'A', 'B'}, default '0'
         Parametrization the four parameters are written in.
+    backend : {'numpy', 'torch'}, optional
+        Which array library evaluates this. The default picks torch when any
+        argument is a ``torch.Tensor``, and NumPy otherwise. Tensor parameters
+        carry gradients through the result. pandas input is NumPy-only: its
+        labels cannot be put back on a tensor, so it is refused rather than
+        silently unlabelled.
 
     Returns
     -------
@@ -527,7 +689,11 @@ def cdf(
     >>> np.round(cdf(np.array([1.0, 2.0]), alpha=1.5, beta=0.0), 6)
     array([0.756342, 0.89496 ])
     """
-    p = _validated(alpha, beta, mu, sigma, par)
+    module = _dispatch(backend, par, x, alpha, beta, mu, sigma)
+    p = _validated(_plain(alpha), _plain(beta), _plain(mu), _plain(sigma), par)
+    if module.name != 'numpy':
+        return _from_backend(module.cdf(x, *_for_backend(p, alpha, beta, mu, sigma)))
+
     labels = labels_of(x)
     values = _levy(np.asarray(x, dtype='d') if labels else x,
                    p.alpha, p.beta, p.mu, p.sigma, cdf=True)
@@ -542,6 +708,7 @@ def logpdf(
     mu: float = 0.0,
     sigma: float = 1.0,
     par: Parametrization = '0',
+    backend: Optional[str] = None,
 ) -> ScalarOrArray:
     """Evaluate the log of the probability density function.
 
@@ -560,6 +727,12 @@ def logpdf(
         Scale, strictly positive.
     par : {'0', '1', 'M', 'A', 'B'}, default '0'
         Parametrization the four parameters are written in.
+    backend : {'numpy', 'torch'}, optional
+        Which array library evaluates this. The default picks torch when any
+        argument is a ``torch.Tensor``, and NumPy otherwise. Tensor parameters
+        carry gradients through the result. pandas input is NumPy-only: its
+        labels cannot be put back on a tensor, so it is refused rather than
+        silently unlabelled.
 
     Returns
     -------
@@ -575,15 +748,22 @@ def logpdf(
     -----
     Note the sign. This returns the log density, following ``scipy.stats``;
     the 1.x function ``levy.neglog_levy`` returns its negative, and both remain
-    available. Densities are floored at 1e-100 before the logarithm, so the
-    result is bounded below by about -230 rather than being ``-inf``.
+    available. Densities are floored before the logarithm, so the result is
+    bounded below rather than being ``-inf``: at 1e-100 (about -230) on the
+    NumPy path and for float64 tensors, and at the dtype's smallest positive
+    normal for lower-precision tensors -- about 1.2e-38, or -87, in float32,
+    where 1e-100 is not representable.
 
     Examples
     --------
     >>> np.round(logpdf(np.array([1.0, 2.0]), alpha=1.5, beta=0.0), 6)
     array([-1.599299, -2.470541])
     """
-    p = _validated(alpha, beta, mu, sigma, par)
+    module = _dispatch(backend, par, x, alpha, beta, mu, sigma)
+    p = _validated(_plain(alpha), _plain(beta), _plain(mu), _plain(sigma), par)
+    if module.name != 'numpy':
+        return _from_backend(-module.neglog(x, *_for_backend(p, alpha, beta, mu, sigma)))
+
     labels = labels_of(x)
     values = np.log(np.maximum(1e-100, _levy(
         np.asarray(x, dtype='d') if labels else x,

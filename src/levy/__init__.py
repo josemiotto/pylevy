@@ -52,6 +52,7 @@ whole public surface, so ``import levy`` behaves exactly as before:
 ``fitting``           ``fit_levy``
 ``sampling``          ``random``
 ``api``               the typed API: ``pdf``/``cdf``/``logpdf``/``rvs``/``fit``
+``backends``          which array library evaluates: NumPy, or optional torch
 ``_build``            offline table generation (only the CLI imports it)
 ===================== =========================================================
 
@@ -107,6 +108,9 @@ __version__ = "2.0.0"
 #: The 2.0 surface.
 _CURRENT = [
     'api',
+    'backends',
+    'set_backend',
+    'using',
     'data_dir',
     'user_cache_dir',
     'PACKAGED_DATA',
@@ -171,6 +175,7 @@ _DEPRECATED = {
 # `import levy`.
 _SUBMODULES = (
     'api',
+    'backends',
     'constants',
     'distribution',
     'fitting',
@@ -218,6 +223,11 @@ def __getattr__(name):
     """
     if name in _SUBMODULES:
         return importlib.import_module(f'levy.{name}')
+
+    if name in ('set_backend', 'using'):
+        # levy.backends imports nothing heavier than levy._compat, so this
+        # costs nothing for a caller who never selects a backend.
+        return getattr(importlib.import_module('levy.backends'), name)
 
     if name in _DEPRECATED:
         module_name, attribute, replacement = _DEPRECATED[name]
