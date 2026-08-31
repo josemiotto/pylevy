@@ -122,6 +122,9 @@ fixes.
 
 <https://pylevy.readthedocs.io/en/latest/index.html>
 
+[How it works](docs/source/how_it_works.md) explains the interpolation scheme
+and where the accuracy comes from.
+
 ## License
 
 GPL-3.0-or-later; see [LICENSE](LICENSE).

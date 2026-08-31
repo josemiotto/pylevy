@@ -61,6 +61,11 @@ pandas = ["pandas>=1.5"]
 # differentiable, so a stable distribution can be fitted by gradient descent
 # inside a larger model. If torch is absent, not one line of it is imported.
 torch = ["torch>=2.0"]
+# Building the documentation. furo is an ordinary pip package, so a docs build
+# is reproducible from .readthedocs.yaml and this file alone -- previously the
+# build configuration lived only in the Read the Docs web interface, where
+# nobody but the account owner could see or fix it.
+docs = ["sphinx>=7", "furo", "myst-parser>=2"]
 
 # Regenerates the lookup tables into a user cache directory. Replaces
 # `python -m levy build`, which wrote 24 MB into the installed package.

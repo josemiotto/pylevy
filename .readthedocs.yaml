@@ -1,0 +1,29 @@
+# Read the Docs build configuration.
+#
+# Committed deliberately, even though the docs are published to GitHub Pages.
+# Until now the RTD build settings existed only in the RTD web interface, which
+# meant nobody but the account owner could reproduce or fix a docs build -- the
+# same bus-factor problem as everything else in this repository. This file makes
+# the build reproducible by anyone, and keeps the existing readthedocs.io URL
+# working for whoever has it bookmarked.
+version: 2
+
+build:
+  os: ubuntu-24.04
+  tools:
+    python: "3.12"
+
+sphinx:
+  configuration: docs/source/conf.py
+  fail_on_warning: true
+
+python:
+  install:
+    # The package itself: autodoc imports it, and conf.py reads __version__.
+    - method: pip
+      path: .
+      extra_requirements:
+        - docs
+
+formats:
+  - pdf

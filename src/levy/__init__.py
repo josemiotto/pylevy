@@ -24,7 +24,7 @@ Notes
 -----
 **Parametrizations.** The parameters of a Levy stable distribution can be
 written down in several ways. Available here are 0 and 1 in the notation of
-Nolan [1]_, and M, A and B from Zolotarev [2]_.
+Nolan [Nolan2020]_, and M, A and B from Zolotarev [Zolotarev1986]_.
 
 Nolan's are the easier two to reason about. Parametrization 0 is typically
 preferred for numerical calculations and has
@@ -58,20 +58,20 @@ whole public surface, so ``import levy`` behaves exactly as before:
 
 References
 ----------
-.. [1] J. P. Nolan, "Univariate Stable Distributions", Springer, 2020.
-       https://edspace.american.edu/jpnolan/stable/
-.. [2] V. M. Zolotarev, "One-dimensional Stable Distributions", AMS, 1986.
+.. [Nolan2020] J. P. Nolan, "Univariate Stable Distributions", Springer, 2020.
+   https://edspace.american.edu/jpnolan/stable/
+.. [Zolotarev1986] V. M. Zolotarev, "One-dimensional Stable Distributions",
+   AMS, 1986.
 
 Examples
 --------
 >>> import numpy as np
->>> import levy
->>> np.round(levy.levy(np.array([1.0, 2.0]), 1.5, 0.0, cdf=True), 6)
+>>> from levy import api
+>>> np.round(api.cdf(np.array([1.0, 2.0]), alpha=1.5, beta=0.0), 6)
 array([0.756342, 0.89496 ])
->>> np.random.seed(0)
->>> x = levy.random(1.5, 0.0, 0.0, 1.0, shape=(200,))
->>> levy.fit_levy(x)[0]
-par=0, alpha=1.52, beta=-0.08, mu=0.05, sigma=0.99
+>>> x = api.rvs(alpha=1.5, beta=0.0, size=200, random_state=0)
+>>> tuple(round(v, 2) for v in api.fit(x).params.as_tuple())
+(1.52, -0.08, 0.05, 0.99)
 """
 
 import importlib
