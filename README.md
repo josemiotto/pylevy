@@ -78,6 +78,40 @@ api.fit(returns).to_series()
 
 Without the extra, pandas is never imported.
 
+## torch
+
+    pip install ".[torch]"
+
+Hand the functions tensors and the result carries gradients, so the log
+likelihood can be minimised by gradient descent inside a larger model:
+
+```python
+import torch
+from levy import api
+
+sample = torch.tensor(observations)
+params = torch.tensor([1.4, 0.0, 0.0, 1.0], requires_grad=True)
+optimizer = torch.optim.Adam([params], lr=0.03)
+
+for _ in range(400):
+    optimizer.zero_grad()
+    # The parameters are validated on every call, so keep the optimizer's
+    # raw values inside the domain: alpha in [0.5, 2], beta in [-1, 1],
+    # sigma > 0. clamp is differentiable inside the range and stops the
+    # gradient at its edges, which is what a bound should do.
+    loss = -api.logpdf(sample,
+                       alpha=params[0].clamp(0.55, 1.95),
+                       beta=params[1].clamp(-0.95, 0.95),
+                       mu=params[2],
+                       sigma=params[3].clamp(min=1e-3)).sum()
+    loss.backward()
+    optimizer.step()
+```
+
+`levy.set_backend('torch')` or `with levy.using('torch'):` selects it
+explicitly. NumPy is the default, and without the extra torch is never
+imported.
+
 ## Regenerating the tables
 
 The shipped tables are enough for normal use. To rebuild them, at the default

@@ -240,7 +240,7 @@ jobs:
       # -- every parameter documented, in order, with a type, and a Returns
       # section that matches. ruff cannot see that far.
       - name: numpydoc
-        run: python -m numpydoc lint src/levy/*.py src/levy/_build/*.py
+        run: python -m numpydoc lint src/levy/*.py src/levy/_build/*.py src/levy/backends/*.py
 
       # Strict, but only over the typed surface -- levy/api.py and
       # levy/_typing.py. The numerical core has no annotations and is checked
@@ -263,15 +263,18 @@ jobs:
       # is what proves an install without them works. This one is the other
       # half: pandas installed, so tests/test_pandas.py actually runs instead of
       # being skipped.
+      # CPU-only: the torch wheel index below avoids pulling ~2 GB of CUDA
+      # libraries onto a runner that has no GPU.
       - name: Install package with extras
         run: |
           python -m pip install --upgrade pip
-          python -m pip install -e ".[dev,pandas]"
+          python -m pip install torch --index-url https://download.pytorch.org/whl/cpu
+          python -m pip install -e ".[dev,pandas,torch]"
 
-      # The extra must be declared in the package metadata, not merely be
-      # importable on this runner: `pip install ".[pandas]"` only *warns* when
-      # an extra does not exist, so a misspelt or dropped extra would otherwise
-      # pass here as long as pandas got installed some other way.
+      # The extras must be declared in the package metadata, not merely be
+      # importable on this runner: `pip install ".[torch]"` only *warns* when
+      # an extra does not exist, and torch is pre-installed above anyway (for
+      # the CPU wheel), so a misspelt or dropped extra would otherwise pass.
       - name: The extras are declared in the package metadata
         run: |
           python - <<'PY'
@@ -280,24 +283,27 @@ jobs:
           with open("pyproject.toml", "rb") as handle:
               name = tomllib.load(handle)["project"]["name"]
           declared = requires(name) or []
-          for extra in ("pandas",):
+          for extra in ("pandas", "torch"):
               assert any(f'extra == "{extra}"' in r for r in declared), (extra, declared)
           print("extras declared:", sorted(r for r in declared if "extra ==" in r))
           PY
 
-      # The optional suite is left out here and run exactly once below, where
-      # a skip is made visible and fatal.
+      # The optional suites are left out here and run exactly once below,
+      # where a skip is made visible and fatal.
       - name: Run tests
-        run: python -m pytest tests/ -q -m "not build" --ignore=tests/test_pandas.py
+        run: >-
+          python -m pytest tests/ -q -m "not build"
+          --ignore=tests/test_pandas.py --ignore=tests/test_torch.py
 
-      # -rs prints every skip. test_pandas.py skips itself when pandas is
-      # missing, so any SKIPPED line means the extra did not install.
-      - name: pandas support is exercised, not skipped
+      # -rs prints every skip. Each optional suite skips itself when its
+      # dependency is missing, so any SKIPPED line means an extra did not
+      # install -- which pre-installing torch above would otherwise hide.
+      - name: Optional-dependency suites are exercised, not skipped
         run: |
           # pipefail: without it the pipeline's status is tee's, and a failing
           # pytest would pass this step as long as nothing was skipped.
           set -o pipefail
-          python -m pytest tests/test_pandas.py -q -rs -p no:cacheprovider | tee optional.log
+          python -m pytest tests/test_pandas.py tests/test_torch.py -q -rs -p no:cacheprovider | tee optional.log
           ! grep -q "SKIPPED" optional.log
 
   doctests:
