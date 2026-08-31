@@ -1,0 +1,34 @@
+# Runs the fast checks on commit. The slow ones -- the test suite, mypy, the
+# docs build -- stay in CI, so committing does not take a minute.
+#
+#   pre-commit install
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+        exclude: '\.jsonl$'   # the golden file is exact; do not touch it
+      - id: end-of-file-fixer
+        exclude: '\.jsonl$'
+      - id: check-yaml
+      - id: check-toml
+      - id: check-added-large-files
+        # The limit is per file. The two density tables are 5.2 MB each and
+        # are committed on purpose; a float64 table of the same grid is
+        # ~11 MB, so 6000 lets the shipped ones through and catches a new
+        # one being added by accident -- which is how .git got to 55 MB for
+        # 647 lines of code. (A 12 MB limit would have let that happen again.)
+        args: ["--maxkb=6000"]
+      - id: check-merge-conflict
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.16.5
+    hooks:
+      - id: ruff
+        args: [--fix]
+
+  - repo: https://github.com/numpy/numpydoc
+    rev: v1.9.0
+    hooks:
+      - id: numpydoc-validation
+        files: ^src/levy/

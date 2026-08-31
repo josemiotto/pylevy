@@ -1,0 +1,48 @@
+cff-version: 1.2.0
+title: pylevy
+message: If you use this software, please cite it as below.
+type: software
+authors:
+  - family-names: Harrison
+    given-names: Paul
+  - family-names: Miotto
+    given-names: José María
+    email: josemiotto@gmail.com
+  - family-names: Carisimo
+    given-names: Esteban
+abstract: >-
+  Calculation and maximum-likelihood fitting of Levy alpha-stable
+  distributions, by interpolation of a precomputed lookup table.
+keywords:
+  - levy
+  - alpha-stable
+  - stable distribution
+  - heavy tails
+  - maximum likelihood
+license: GPL-3.0-or-later
+repository-code: https://github.com/josemiotto/pylevy
+version: 2.0.0
+references:
+  - type: book
+    title: Univariate Stable Distributions
+    authors:
+      - family-names: Nolan
+        given-names: John P.
+    publisher:
+      name: Springer
+    year: 2020
+  - type: article
+    title: A Method for Simulating Stable Random Variables
+    authors:
+      - family-names: Chambers
+        given-names: John M.
+      - family-names: Mallows
+        given-names: Colin L.
+      - family-names: Stuck
+        given-names: B. W.
+    journal: Journal of the American Statistical Association
+    volume: 71
+    issue: 354
+    start: 340
+    end: 344
+    year: 1976
