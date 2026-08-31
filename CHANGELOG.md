@@ -34,6 +34,15 @@ number, a NaN, or an error -- it returns the same floats, bit for bit.
   did: for a package, `-m` requires `__main__.py`.
 - NumPy-style docstrings throughout, enforced by `ruff` (pydocstyle, numpy
   convention) and `numpydoc`, both gated in CI.
+- Documentation that builds from a checkout, published to GitHub Pages and
+  built on every pull request with `-W`, so a docstring that does not parse,
+  a page missing from the toctree or an unreachable intersphinx inventory
+  fails where it was introduced; the examples on the front and migration
+  pages are executed by the doctest builder. New narrative pages: **How it works** (the tan-space
+  grid, Catmull-Rom interpolation, the tail crossover and its known
+  discontinuity, why float32 suffices) and **Migrating from 1.x**. A committed
+  `.readthedocs.yaml` replaces build settings that existed only in the Read the
+  Docs web interface, where nobody but the account owner could see them.
 - An optional `pandas` extra. `pdf`, `cdf` and `logpdf` accept a `Series` or a
   `DataFrame` and return one carrying the same index; `fit` accepts a `Series`
   or a single-column `DataFrame`, and `FitResult.to_series()` reports the
