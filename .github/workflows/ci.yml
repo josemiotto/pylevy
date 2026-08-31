@@ -190,7 +190,7 @@ jobs:
       # -- every parameter documented, in order, with a type, and a Returns
       # section that matches. ruff cannot see that far.
       - name: numpydoc
-        run: python -m numpydoc lint src/levy/*.py src/levy/_build/*.py
+        run: python -m numpydoc lint src/levy/*.py src/levy/_build/*.py src/levy/backends/*.py
 
       # Strict, but only over the typed surface -- levy/api.py and
       # levy/_typing.py. The numerical core has no annotations and is checked
@@ -213,16 +213,21 @@ jobs:
       # is what proves an install without them works. This one is the other
       # half: pandas installed, so tests/test_pandas.py actually runs instead of
       # being skipped.
+      # CPU-only: the torch wheel index below avoids pulling ~2 GB of CUDA
+      # libraries onto a runner that has no GPU.
       - name: Install package with extras
         run: |
           python -m pip install --upgrade pip
-          python -m pip install -e ".[dev,pandas]"
+          python -m pip install torch --index-url https://download.pytorch.org/whl/cpu
+          python -m pip install -e ".[dev,pandas,torch]"
 
       - name: Run tests
         run: python -m pytest tests/ -q -m "not build"
 
-      - name: pandas support is exercised, not skipped
-        run: python -m pytest tests/test_pandas.py -q --no-header -p no:cacheprovider
+      # Guards against these being silently skipped, which is what would happen
+      # if an extra failed to install.
+      - name: Optional-dependency suites are exercised, not skipped
+        run: python -m pytest tests/test_pandas.py tests/test_torch.py -q --no-header -p no:cacheprovider
 
   doctests:
     name: doctests

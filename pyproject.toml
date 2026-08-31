@@ -57,6 +57,10 @@ lint = ["ruff>=0.16,<0.17", "numpydoc>=1.6", "mypy>=1.8"]
 # is detected by looking in sys.modules, so an install without this extra never
 # pays for it. See levy/_compat.py.
 pandas = ["pandas>=1.5"]
+# Optional. The torch backend exists to make the log likelihood
+# differentiable, so a stable distribution can be fitted by gradient descent
+# inside a larger model. If torch is absent, not one line of it is imported.
+torch = ["torch>=2.0"]
 
 # Regenerates the lookup tables into a user cache directory. Replaces
 # `python -m levy build`, which wrote 24 MB into the installed package.
@@ -176,6 +180,11 @@ module = [
     "levy._build",
     "levy._build.*",
     "levy._logging",
+    # The backends are numerical code in the same untyped style as the core,
+    # and typing the torch one strictly would need torch stubs -- for a
+    # dependency that is optional by design.
+    "levy.backends",
+    "levy.backends.*",
     "scipy.*",
     # pandas ships no stubs by default and is an optional extra; requiring
     # pandas-stubs to type-check the core would defeat the point of it being
