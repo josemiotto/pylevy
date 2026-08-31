@@ -71,9 +71,9 @@ def random(alpha, beta, mu=0.0, sigma=1.0, shape=()):
     Notes
     -----
     Exact, in the sense of being derived directly from the definition of a
-    stable variable rather than by inverting an interpolated cdf. Draws come
-    from the legacy global ``numpy.random`` stream, so ``np.random.seed`` is
-    what makes a run reproducible.
+    stable variable [CMS1976]_ rather than by inverting an interpolated cdf.
+    Draws come from the legacy global ``numpy.random`` stream, so
+    ``np.random.seed`` is what makes a run reproducible.
 
     ``alpha`` within 1e-8 of 1 is moved 1e-8 away from it, off the pole of the
     tangent, keeping the side it was already on -- an ``alpha`` just below 1
@@ -82,7 +82,7 @@ def random(alpha, beta, mu=0.0, sigma=1.0, shape=()):
 
     References
     ----------
-    .. [1] J. M. Chambers, C. L. Mallows and B. W. Stuck, "A Method for
+    .. [CMS1976] J. M. Chambers, C. L. Mallows and B. W. Stuck, "A Method for
        Simulating Stable Random Variables", Journal of the American Statistical
        Association 71(354), 340-344, 1976.
 

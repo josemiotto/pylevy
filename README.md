@@ -134,6 +134,9 @@ fixes.
 
 <https://pylevy.readthedocs.io/en/latest/index.html>
 
+[How it works](https://github.com/josemiotto/pylevy/blob/master/docs/source/how_it_works.md)
+explains the interpolation scheme and where the accuracy comes from.
+
 ## License
 
 GPL-3.0-or-later; see [LICENSE](https://github.com/josemiotto/pylevy/blob/master/LICENSE).
