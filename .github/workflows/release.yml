@@ -1,0 +1,131 @@
+name: Release
+
+# Publishes to PyPI when a `vX.Y.Z` tag is pushed.
+#
+# Trusted Publishing (OIDC), not an API token. That matters specifically here:
+# a token has to be minted by the account owner, stored as a repository secret,
+# and rotated -- three steps a dormant maintainer will not do. Trusted
+# Publishing needs one configuration on PyPI and then nothing, ever.
+#
+# See docs/proposals/pypi-name.md: the distribution name is read from
+# pyproject.toml, so the `pylevy` versus `levy-stable` decision can be made at
+# merge time and does not block anything.
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: tag matches __version__
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # levy.__version__ is the single source of truth. Releasing v2.0.1 from a
+      # tree that says "2.0.0" would put a wheel on PyPI whose metadata
+      # disagrees with its own contents -- which has already happened once in
+      # this repository's history: the tag `1.2` was cut while __version__ still
+      # read "1.1". Read statically, so this does not need numpy installed.
+      - name: Compare the tag against the package version
+        run: |
+          python - <<'PY'
+          import ast, os, pathlib, sys
+
+          source = pathlib.Path("src/levy/__init__.py").read_text()
+          version = None
+          for node in ast.parse(source).body:
+              if isinstance(node, ast.Assign):
+                  for target in node.targets:
+                      if getattr(target, "id", None) == "__version__":
+                          version = ast.literal_eval(node.value)
+          tag = os.environ["GITHUB_REF_NAME"]
+          print(f"tag={tag!r} __version__={version!r}")
+          if tag != f"v{version}":
+              sys.exit(f"tag {tag!r} does not match v{version!r}; refusing to publish")
+          PY
+
+  build:
+    name: build and check
+    needs: check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Build
+        run: |
+          python -m pip install --upgrade pip build twine
+          python -m build
+          python -m twine check --strict dist/*
+
+      # A wheel that imports and computes, from a clean environment, before it
+      # goes anywhere public.
+      - name: Smoke-test the built wheel
+        run: |
+          python -m venv /tmp/smoke
+          /tmp/smoke/bin/pip install --quiet dist/*.whl
+          /tmp/smoke/bin/python - <<'PY'
+          import numpy as np
+          from levy import api
+          values = api.cdf(np.array([1.0, 2.0]), alpha=1.5, beta=0.0)
+          assert np.allclose(values, [0.756342, 0.894960], atol=1e-6), values
+          print("wheel imports and computes:", values)
+          PY
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: distributions
+          path: dist/
+
+  publish:
+    name: publish to PyPI
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/pylevy
+    permissions:
+      # The OIDC token Trusted Publishing exchanges for an upload credential.
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: distributions
+          path: dist/
+
+      - uses: pypa/gh-action-pypi-publish@release/v1
+
+  attach:
+    name: attach tables to the release
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      # Gives `levy-tables` a download fallback: someone who wants the tables
+      # without a 10 MB wheel, or who needs to check that theirs match, can get
+      # them and the manifest from the release page.
+      - name: Attach the lookup tables and their manifest
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release upload "$GITHUB_REF_NAME" \
+            src/levy/data/pdf.npz \
+            src/levy/data/cdf.npz \
+            src/levy/data/limits.npz \
+            src/levy/data/manifest.json \
+            --clobber

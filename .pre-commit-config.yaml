@@ -1,0 +1,32 @@
+# Runs the fast checks on commit. The slow ones -- the test suite, mypy, the
+# docs build -- stay in CI, so committing does not take a minute.
+#
+#   pre-commit install
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+        exclude: '\.jsonl$'   # the golden file is exact; do not touch it
+      - id: end-of-file-fixer
+        exclude: '\.jsonl$'
+      - id: check-yaml
+      - id: check-toml
+      - id: check-added-large-files
+        # The lookup tables are 10.3 MB and are committed on purpose. This
+        # catches a *new* one being added by accident, which is how .git got to
+        # 55 MB for 647 lines of code.
+        args: ["--maxkb=12000"]
+      - id: check-merge-conflict
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.16.5
+    hooks:
+      - id: ruff
+        args: [--fix]
+
+  - repo: https://github.com/numpy/numpydoc
+    rev: v1.9.0
+    hooks:
+      - id: numpydoc-validation
+        files: ^src/levy/

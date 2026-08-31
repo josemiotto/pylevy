@@ -125,6 +125,13 @@ fixes.
 [How it works](docs/source/how_it_works.md) explains the interpolation scheme
 and where the accuracy comes from.
 
+## Contributing
+
+[CONTRIBUTING.md](CONTRIBUTING.md) has the setup, the checks, and the rule that
+matters: the golden file pins this package's numerical output, and a change that
+moves it needs evidence, not a regeneration. [AGENTS.md](AGENTS.md) has the
+coding conventions.
+
 ## License
 
 GPL-3.0-or-later; see [LICENSE](LICENSE).

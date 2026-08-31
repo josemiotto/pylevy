@@ -1,0 +1,53 @@
+name: Bug report
+description: Something returns the wrong number, or raises when it should not.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        For a numerical bug, the reproducer is most of the report. `levy._build.calculate_levy`
+        is the ground truth if you need something independent of the interpolation tables to
+        compare against.
+
+  - type: textarea
+    id: reproducer
+    attributes:
+      label: Reproducer
+      description: The smallest script that shows it. Include the parameters and the input.
+      render: python
+      placeholder: |
+        import numpy as np
+        from levy import api
+        api.pdf(np.array([0.0]), alpha=0.58, beta=0.74)
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: What you got
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected, and why
+      description: A reference value, an analytical result, or a comparison against another tool.
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: "Output of: `python -c \"import sys, numpy, scipy, levy; print(sys.version, numpy.__version__, scipy.__version__, levy.__version__)\"`"
+      render: shell
+    validations:
+      required: true
+
+  - type: input
+    id: tables
+    attributes:
+      label: Which tables are in use
+      description: "Output of `levy-tables where`. Only relevant if you have regenerated them."

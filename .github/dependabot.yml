@@ -1,0 +1,27 @@
+version: 2
+updates:
+  # GitHub Actions is the ecosystem that actually accrues security debt here:
+  # a pinned action tag stops receiving fixes the moment it is pinned, and
+  # nothing else in the repository notices.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    commit-message:
+      prefix: "ci"
+
+  # Against pyproject.toml. The two existing dependabot branches target
+  # requirements.txt, which no longer exists; they can be closed.
+  #
+  # Dependencies here are floors, not pins, so this will mostly be quiet -- it
+  # opens a PR only when a floor genuinely has to move.
+  - package-ecosystem: pip
+    directory: /
+    schedule:
+      interval: monthly
+    commit-message:
+      prefix: "build"
+    groups:
+      dev-dependencies:
+        patterns: ["*"]
+        dependency-type: development
