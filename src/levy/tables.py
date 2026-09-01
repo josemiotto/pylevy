@@ -1,4 +1,3 @@
-# -*- encoding: utf-8 -*-
 #    Copyright (C) 2017 José M. Miotto
 #    This program is free software; you can redistribute it and/or modify
 #    it under the terms of the GNU General Public License as published by
@@ -14,7 +13,15 @@
 #    along with this program; if not, write to the Free Software
 #    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
-"""Locating, loading, caching and repairing the lookup tables."""
+"""Locating, loading, caching and repairing the lookup tables.
+
+Attributes
+----------
+ROOT : str
+    Directory the installed package lives in.
+PACKAGED_DATA : str
+    Directory of the tables shipped inside the package.
+"""
 
 import os
 import sys
@@ -34,11 +41,20 @@ _data_cache = {}
 
 _TABLE_NAMES = ('pdf', 'cdf', 'lower_limit', 'upper_limit')
 
-def user_cache_dir():
-    """ Per-user directory where regenerated tables are looked for.
 
-    Resolved without a third-party dependency: XDG_CACHE_HOME or ~/.cache on
-    Unix, ~/Library/Caches on macOS, LOCALAPPDATA on Windows.
+def user_cache_dir():
+    """Return the per-user directory where regenerated tables are looked for.
+
+    Returns
+    -------
+    str
+        Path to the cache directory. It is not created here.
+
+    Notes
+    -----
+    Resolved without a third-party dependency: ``XDG_CACHE_HOME`` or
+    ``~/.cache`` on Unix, ``~/Library/Caches`` on macOS, ``LOCALAPPDATA`` on
+    Windows.
     """
     if sys.platform == 'win32':
         base = os.environ.get('LOCALAPPDATA') or os.path.expanduser(r'~\AppData\Local')
@@ -50,8 +66,21 @@ def user_cache_dir():
 
 
 def data_dir(writable=False):
-    """ Directory the lookup tables are read from.
+    """Return the directory the lookup tables are read from.
 
+    Parameters
+    ----------
+    writable : bool, default False
+        Ask for the directory a *new* build should be written to, rather than
+        the one the current tables are read from.
+
+    Returns
+    -------
+    str
+        Path to the directory.
+
+    Notes
+    -----
     Search order: ``$LEVY_DATA_DIR``, then the user cache directory if it holds
     a complete set, then the tables shipped inside the package.
 
@@ -76,17 +105,30 @@ def data_dir(writable=False):
 
 
 def _has_complete_tables(directory):
-    """ True if `directory` holds a usable set of tables, in either layout.
+    """Report whether `directory` holds a usable set of tables, in either layout.
 
-    The crossover limits ship as a single limits.npz with `lower` and `upper`
-    arrays; tables built by an older version have them as two separate files.
+    Parameters
+    ----------
+    directory : str
+        Directory to inspect. It need not exist.
+
+    Returns
+    -------
+    bool
+        True when the densities and the crossover limits are all present.
+
+    Notes
+    -----
+    The crossover limits ship as a single ``limits.npz`` with ``lower`` and
+    ``upper`` arrays; tables built by an older version have them as two
+    separate files.
     """
-    if not all(os.path.exists(os.path.join(directory, '{}.npz'.format(n)))
+    if not all(os.path.exists(os.path.join(directory, f'{n}.npz'))
                for n in ('pdf', 'cdf')):
         return False
     if os.path.exists(os.path.join(directory, 'limits.npz')):
         return True
-    return all(os.path.exists(os.path.join(directory, '{}.npz'.format(n)))
+    return all(os.path.exists(os.path.join(directory, f'{n}.npz'))
                for n in ('lower_limit', 'upper_limit'))
 
 
@@ -104,11 +146,27 @@ _CDF_TOLERANCE = 1e-6
 
 
 def _repair_table(key, table):
-    """ Replaces values the table generator failed to compute.
+    """Replace values the table generator failed to compute.
 
-    CDF cells outside [0, 1] (or non-finite) are replaced by linear
+    Parameters
+    ----------
+    key : {'pdf', 'cdf', 'lower_limit', 'upper_limit'}
+        Which table this is. Only ``'cdf'`` is inspected.
+    table : ndarray
+        The table as loaded from disk. Never modified in place.
+
+    Returns
+    -------
+    ndarray
+        `table` itself when there is nothing to repair, otherwise a repaired
+        copy.
+
+    Notes
+    -----
+    CDF cells outside ``[0, 1]`` (or non-finite) are replaced by linear
     interpolation along x, which is well justified here: the neighbours of the
-    known-bad cells are smooth and about 0.0128 apart.
+    known-bad cells are smooth and about 0.0128 apart. A repair is logged once
+    at ``WARNING``.
     """
     if key != 'cdf':
         return table
@@ -176,7 +234,19 @@ def _repair_table(key, table):
 
 
 def _read_from_cache(key):
-    """ Loads the file given by key """
+    """Return the named table, loading and repairing it on first use.
+
+    Parameters
+    ----------
+    key : {'pdf', 'cdf', 'lower_limit', 'upper_limit'}
+        Which table to return.
+
+    Returns
+    -------
+    ndarray
+        The table. The same object is handed out on every call, so callers must
+        treat it as read-only.
+    """
     try:
         return _data_cache[key]
     except KeyError:
@@ -185,10 +255,24 @@ def _read_from_cache(key):
 
 
 def _load_table(directory, key):
-    """ Read one table from `directory`, in either storage layout.
+    """Read one table from `directory`, in either storage layout.
 
-    np.load returns a lazy NpzFile; the array is materialised and the archive
-    closed rather than leaking the handle until garbage collection.
+    Parameters
+    ----------
+    directory : str
+        Directory holding the ``.npz`` archives.
+    key : {'pdf', 'cdf', 'lower_limit', 'upper_limit'}
+        Which table to read.
+
+    Returns
+    -------
+    ndarray
+        The materialised array.
+
+    Notes
+    -----
+    ``np.load`` returns a lazy ``NpzFile``; the array is materialised and the
+    archive closed rather than leaking the handle until garbage collection.
     """
     if key in ('lower_limit', 'upper_limit'):
         merged = os.path.join(directory, 'limits.npz')
@@ -196,5 +280,5 @@ def _load_table(directory, key):
             with np.load(merged) as archive:
                 return archive[key.split('_')[0]]
 
-    with np.load(os.path.join(directory, '{}.npz'.format(key))) as archive:
+    with np.load(os.path.join(directory, f'{key}.npz')) as archive:
         return archive[archive.files[0]]

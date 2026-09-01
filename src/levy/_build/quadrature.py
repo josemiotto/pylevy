@@ -1,4 +1,3 @@
-# -*- encoding: utf-8 -*-
 """Direct numerical evaluation of the Levy stable density, by quadrature.
 
 This is the ground truth the interpolation tables are built from, and the
@@ -17,23 +16,40 @@ __all__ = ["calculate_levy", "interpolated_levy"]
 
 
 def calculate_levy(x, alpha, beta, cdf=False):
-    """ Levy stable distribution by numerical integration.
+    """Evaluate the Levy stable distribution by numerical integration.
 
+    Parameters
+    ----------
+    x : float
+        Point to evaluate at, in tangent space: ``levy(2, 1.5, 0)`` corresponds
+        to ``calculate_levy(np.tan(2), 1.5, 0)``.
+    alpha : float
+        Index of stability.
+    beta : float
+        Skewness.
+    cdf : bool, default False
+        Return the cdf instead of the pdf.
+
+    Returns
+    -------
+    float
+        The density, or the distribution function, at `x`.
+
+    Notes
+    -----
     Used to build the lookup tables, and as the reference in accuracy tests.
-    Note that to evaluate at a 'true' x the tangent must be applied:
-    ``levy(2, 1.5, 0) == calculate_levy(np.tan(2), 1.5, 0)``.
+    "0" parametrization as per Nolan. The special case ``alpha == 1`` is
+    handled separately; because of an error in the numerical integration, its
+    lower limit is 1e-10 rather than 0.
 
-    "0" parametrization as per Nolan. The special case alpha == 1 is handled
-    separately; because of an error in the numerical integration, its lower
-    limit is 1e-10 rather than 0.
-
-    Known limitation: for alpha = 0.58, beta = -+0.74 and |x| near 0.0079 --
-    the two grid points closest to zero -- ``integrate.quad``'s oscillatory
-    routine fails and returns ~5.72e+307. Those are exactly the four unusable
-    cells in the shipped cdf.npz. The weight passed to quad is sin(x*u) or
-    cos(x*u), whose period grows without bound as x approaches zero, which is
-    where the routine breaks down. Callers building tables should validate the
-    result rather than trusting it; see levy._build.tables.
+    Known limitation: for ``alpha = 0.58``, ``beta = -+0.74`` and ``|x|`` near
+    0.0079 -- the two grid points closest to zero -- ``integrate.quad``'s
+    oscillatory routine fails and returns ~5.72e+307. Those are exactly the
+    four unusable cells in the shipped ``cdf.npz``. The weight passed to quad
+    is ``sin(x*u)`` or ``cos(x*u)``, whose period grows without bound as `x`
+    approaches zero, which is where the routine breaks down. Callers building
+    tables should validate the result rather than trusting it; see
+    :mod:`levy._build.tables`.
     """
     from scipy import integrate
 
@@ -80,11 +96,32 @@ def calculate_levy(x, alpha, beta, cdf=False):
 
 
 def interpolated_levy(x, alpha, beta, cdf=False, table=None):
-    """ Interpolate the table without replacing the tails.
+    """Interpolate the table without replacing the tails.
 
-    ``levy.levy`` splices the power-law asymptote onto the tails; this does not,
-    which is what the crossover search needs in order to find where the two
-    agree.
+    Parameters
+    ----------
+    x : array_like
+        Points to evaluate at, in real space; the arctangent is applied here.
+    alpha : float
+        Index of stability.
+    beta : float
+        Skewness.
+    cdf : bool, default False
+        Interpolate the cdf table instead of the pdf table.
+    table : ndarray, optional
+        Table to interpolate. Loaded from the cache when omitted, which is what
+        a table build in progress must *not* do.
+
+    Returns
+    -------
+    ndarray
+        Interpolated values, with no tail replacement.
+
+    Notes
+    -----
+    ``levy.levy`` splices the power-law asymptote onto the tails; this does
+    not, which is what the crossover search needs in order to find where the
+    two agree.
 
     May return slightly negative values: Catmull-Rom weights have negative
     lobes, so even a non-negative grid can interpolate below zero.

@@ -63,7 +63,7 @@ def test_data_dir_accepts_the_legacy_split_limit_files(monkeypatch, tmp_path):
     cache.mkdir()
     monkeypatch.setattr(levy.tables, "user_cache_dir", lambda: str(cache))
     for name in ("pdf", "cdf", "lower_limit", "upper_limit"):
-        (cache / "{}.npz".format(name)).write_bytes(b"")
+        (cache / f"{name}.npz").write_bytes(b"")
     assert levy.data_dir() == str(cache)
 
 
@@ -93,7 +93,7 @@ def test_build_density_tables_at_a_tiny_grid(tmp_path):
         table, _ = results[name]
         assert table.shape == TINY
         assert np.isfinite(table).all()
-        assert (tmp_path / "{}.npz".format(name)).exists()
+        assert (tmp_path / f"{name}.npz").exists()
 
     cdf = results["cdf"][0]
     assert cdf.min() >= -1e-6 and cdf.max() <= 1.0 + 1e-6

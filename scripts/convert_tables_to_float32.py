@@ -37,16 +37,13 @@ def report(name, original):
         relative = np.abs(back - original) / np.maximum(np.abs(original), 1e-300)
     finite = np.isfinite(relative)
     print(
-        "  {:<12} max rel {:.3e}   p99.9 rel {:.3e}   max abs {:.3e}".format(
-            name,
-            relative[finite].max(),
-            np.percentile(relative[finite], 99.9),
-            np.abs(back - original).max(),
-        )
+        f"  {name:<12} max rel {relative[finite].max():.3e}"
+        f"   p99.9 rel {np.percentile(relative[finite], 99.9):.3e}"
+        f"   max abs {np.abs(back - original).max():.3e}"
     )
-    assert np.isfinite(converted).all(), "{} produced non-finite float32 values".format(name)
+    assert np.isfinite(converted).all(), f"{name} produced non-finite float32 values"
     positive_lost = int(((original > 0) & (converted == 0)).sum())
-    assert positive_lost == 0, "{}: {} positive values underflowed".format(name, positive_lost)
+    assert positive_lost == 0, f"{name}: {positive_lost} positive values underflowed"
     return converted
 
 
@@ -55,7 +52,7 @@ def main():
     parser.add_argument("--dry-run", action="store_true", help="measure but do not write")
     args = parser.parse_args()
 
-    print("reading tables from {}".format(levy.data_dir()))
+    print(f"reading tables from {levy.data_dir()}")
     pdf = levy._read_from_cache("pdf")
     cdf = levy._read_from_cache("cdf")
     lower = levy._read_from_cache("lower_limit")
@@ -80,13 +77,16 @@ def main():
     # arrays. Merging them was proposed on the unmerged `dev` branch (3ab5d8e).
     np.savez_compressed(os.path.join(OUT_DIR, "limits.npz"), lower=lower32, upper=upper32)
 
-    write_manifest(OUT_DIR, extra={"source": "converted from the float64 tables", "dtype": "float32"})
+    write_manifest(
+        OUT_DIR,
+        extra={"source": "converted from the float64 tables", "dtype": "float32"},
+    )
 
-    print("\nwrote {}".format(OUT_DIR))
+    print(f"\nwrote {OUT_DIR}")
     before = sum(
-        os.path.getsize(os.path.join(levy.ROOT, "{}.npz".format(n)))
+        os.path.getsize(os.path.join(levy.ROOT, f"{n}.npz"))
         for n in ("pdf", "cdf", "lower_limit", "upper_limit")
-        if os.path.exists(os.path.join(levy.ROOT, "{}.npz".format(n)))
+        if os.path.exists(os.path.join(levy.ROOT, f"{n}.npz"))
     )
     after = sum(
         os.path.getsize(os.path.join(OUT_DIR, f))
@@ -94,14 +94,14 @@ def main():
         if f.endswith(".npz")
     )
     if before:
-        print("  {:.2f} MB -> {:.2f} MB  ({:.0f}% smaller)".format(
-            before / 1e6, after / 1e6, 100 * (1 - after / before)))
+        print(f"  {before / 1e6:.2f} MB -> {after / 1e6:.2f} MB  "
+              f"({100 * (1 - after / before):.0f}% smaller)")
     else:
-        # `before` is a filtered sum, so it is 0 once the float64 originals
-        # are gone -- on a tree where this already ran, or one checked out
-        # after the conversion landed. Nothing to compare against.
-        print("  wrote {:.2f} MB (no float64 originals here to compare "
-              "against)".format(after / 1e6))
+        # `before` is a filtered sum, so it is 0 once the float64 originals are
+        # gone -- on a tree where this already ran, or one checked out after the
+        # conversion landed. Nothing to compare against.
+        print(f"  wrote {after / 1e6:.2f} MB "
+              "(no float64 originals here to compare against)")
     return 0
 
 

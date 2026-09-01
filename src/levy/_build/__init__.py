@@ -1,4 +1,3 @@
-# -*- encoding: utf-8 -*-
 """Offline generation of the lookup tables pylevy interpolates from.
 
 Nothing here is needed to *use* the package. It is imported only by the

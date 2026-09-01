@@ -1,4 +1,3 @@
-# -*- encoding: utf-8 -*-
 """Entry point for ``python -m levy``.
 
 This file did not exist before, which means ``python -m levy build`` -- the

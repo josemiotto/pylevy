@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 #
 # Configuration file for the Sphinx documentation builder.
 #
@@ -14,7 +13,7 @@
 #
 import os
 import sys
-import unittest.mock as mock
+
 sys.path.insert(0, os.path.abspath('../../../'))
 
 # -- Project information -----------------------------------------------------
@@ -42,8 +41,15 @@ extensions = [
     'sphinx.ext.autodoc',
     'sphinx.ext.doctest',
     'sphinx.ext.intersphinx',
-    'sphinx.ext.mathjax'
+    'sphinx.ext.mathjax',
+    # The docstrings are NumPy style now; without napoleon, autodoc renders the
+    # section underlines as literal text. The rest of the docs configuration
+    # (the sys.path level, the hardcoded version, the theme) is left alone here.
+    'sphinx.ext.napoleon',
 ]
+
+napoleon_google_docstring = False
+napoleon_numpy_docstring = True
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']

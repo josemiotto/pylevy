@@ -37,7 +37,7 @@ def test_shipped_tables_fit_the_size_budget():
         for name in os.listdir(levy.PACKAGED_DATA)
         if name.endswith(".npz")
     )
-    assert total < 11e6, "shipped tables grew to {:.2f} MB".format(total / 1e6)
+    assert total < 11e6, f"shipped tables grew to {total / 1e6:.2f} MB"
 
 
 def test_limit_tables_are_merged():
@@ -86,7 +86,7 @@ def test_accuracy_against_quadrature_is_within_budget():
 
     errors = np.array(errors)
     assert np.median(errors) < INTERPOLATION_ERROR_BUDGET, (
-        "median relative error {:.3e} exceeds the budget".format(np.median(errors))
+        f"median relative error {np.median(errors):.3e} exceeds the budget"
     )
 
 
@@ -111,5 +111,5 @@ def test_fits_are_unaffected_by_table_precision():
         zip(("alpha", "beta", "mu", "sigma"), (1.5, 0.3, 0.0, 1.0))
     ):
         assert abs(means[index] - truth) < 4.0 * standard_errors[index] + 0.05, (
-            "{}: recovered {:.4f}, expected {:.4f}".format(name, means[index], truth)
+            f"{name}: recovered {means[index]:.4f}, expected {truth:.4f}"
         )

@@ -166,14 +166,9 @@ jobs:
       - name: Verify golden file
         run: python tests/golden/generate.py --check
 
-  legacy-doctests:
-    name: legacy doctests (known failing)
+  lint:
+    name: lint and docstrings
     runs-on: ubuntu-latest
-    # Informational, not a gate. These are the package's only pre-existing
-    # tests and 4 of them fail on current NumPy/SciPy for two independent
-    # reasons: last-digit drift in the L-BFGS-B optimum, and NumPy 2 rendering
-    # scalars as np.float64(...). Replacing them is the point of this PR.
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
 
@@ -181,10 +176,45 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Install dependencies
+      - name: Install lint dependencies
         run: |
           python -m pip install --upgrade pip
-          python -m pip install numpy scipy
+          python -m pip install -e ".[lint]"
+
+      # Rules and per-file ignores live in pyproject.toml. `D` runs under the
+      # numpy convention, so this covers the grammar of every docstring.
+      - name: ruff
+        run: python -m ruff check .
+
+      # Complements ruff: numpydoc checks the docstring against the signature
+      # -- every parameter documented, in order, with a type, and a Returns
+      # section that matches. ruff cannot see that far.
+      - name: numpydoc
+        run: python -m numpydoc lint src/levy/*.py src/levy/_build/*.py
+
+  doctests:
+    name: doctests
+    runs-on: ubuntu-latest
+    # A real gate, replacing the informational "legacy doctests" job. The old
+    # one ran `python -m doctest levy/__init__.py`, which after the src/ layout
+    # move pointed at a path that no longer exists -- and, piped into `tail`,
+    # reported success while testing nothing.
+    #
+    # The examples are now written so they can be gated: values are rounded to
+    # 6 decimals and fit results compared with a tolerance, since the old
+    # doctests failed precisely because they pinned 17 digits of an L-BFGS-B
+    # optimum.
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install package and test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev]"
 
       - name: Run doctests
-        run: python -m doctest levy/__init__.py -v | tail -n 1
+        run: python -m pytest --doctest-modules src/levy -q
