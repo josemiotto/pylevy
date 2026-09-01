@@ -22,10 +22,12 @@ project = 'pylevy'
 copyright = '2020, Jose Maria Miotto'
 author = 'Jose Maria Miotto'
 
+# Kept in step with levy.__version__ by hand for now; the docs PR makes this
+# read the package instead, which also needs the sys.path above fixed.
 # The short X.Y version
-version = '1.1'
+version = '2.0'
 # The full version, including alpha/beta/rc tags
-release = '1.1'
+release = '2.0.0'
 
 
 # -- General configuration ---------------------------------------------------

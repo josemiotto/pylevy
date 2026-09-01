@@ -18,7 +18,8 @@ import sys
 
 import numpy as np
 
-from levy import _approximate, _lower, _upper, size
+from levy.constants import _lower, _upper, size
+from levy.distribution import _approximate
 from levy._build.quadrature import calculate_levy, interpolated_levy
 
 logger = logging.getLogger(__name__)
@@ -252,7 +253,7 @@ def build_crossover_tables(out_dir, grid_size=None, jobs=1, cdf_table=None):
     the power-law tail, so they depend on the CDF table and must be rebuilt
     after it.
     """
-    from levy import _read_from_cache
+    from levy.tables import _read_from_cache
 
     grid_size = tuple(grid_size or size)
     _, alphas, betas = grid_axes(grid_size)

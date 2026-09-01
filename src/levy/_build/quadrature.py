@@ -10,7 +10,9 @@ fix and the rename; the numerical results are identical.
 
 import numpy as np
 
-from levy import _interpolate, _lower, _phi, _upper
+from levy.constants import _lower, _upper
+from levy.interpolation import _interpolate
+from levy.parametrization import _phi
 
 __all__ = ["calculate_levy", "interpolated_levy"]
 
@@ -126,7 +128,7 @@ def interpolated_levy(x, alpha, beta, cdf=False, table=None):
     May return slightly negative values: Catmull-Rom weights have negative
     lobes, so even a non-negative grid can interpolate below zero.
     """
-    from levy import _read_from_cache
+    from levy.tables import _read_from_cache
 
     points = np.empty(np.shape(x) + (3,), 'float64')
     points[..., 0] = np.arctan(x)

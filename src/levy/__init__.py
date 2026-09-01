@@ -73,37 +73,20 @@ array([0.756342, 0.89496 ])
 par=0, alpha=1.52, beta=-0.08, mu=0.05, sigma=0.99
 """
 
+import importlib
+import warnings
+
 from levy._logging import logger  # noqa: F401  (re-exported)
-from levy.constants import (  # noqa: F401  (re-exported)
-    _lower,
-    _upper,
-    default,
-    f_bounds,
-    par_bounds,
-    par_names,
-    size,
-)
+from levy.constants import _lower, _upper  # noqa: F401  (re-exported)
 from levy.distribution import (  # noqa: F401  (re-exported)
     _approximate,
     _check_alpha_beta,
     _grid_index,
     _grid_shape,
-    levy,
-    neglog_levy,
 )
-from levy.fitting import fit_levy  # noqa: F401  (re-exported)
 from levy.interpolation import _interpolate, _reflect  # noqa: F401  (re-exported)
-from levy.parametrization import (  # noqa: F401  (re-exported)
-    Parameters,
-    _phi,
-    _psi,
-    convert_from_par0,
-    convert_to_par0,
-)
-from levy.sampling import (  # noqa: F401  (re-exported)
-    _ALPHA_1_RADIUS,
-    random,
-)
+from levy.parametrization import _phi, _psi  # noqa: F401  (re-exported)
+from levy.sampling import _ALPHA_1_RADIUS  # noqa: F401  (re-exported)
 from levy.tables import (  # noqa: F401  (re-exported)
     _CDF_TOLERANCE,
     _TABLE_NAMES,
@@ -118,48 +101,97 @@ from levy.tables import (  # noqa: F401  (re-exported)
     user_cache_dir,
 )
 
-__version__ = "1.1"
+__version__ = "2.0.0"
 
-__all__ = [
-    # distribution
-    'levy',
-    'neglog_levy',
-    # fitting
-    'fit_levy',
-    # sampling
-    'random',
-    # parametrizations
-    'Parameters',
-    'convert_to_par0',
-    'convert_from_par0',
-    'par_names',
-    'par_bounds',
-    'default',
-    'f_bounds',
-    'size',
-    # tables
+#: The 2.0 surface.
+_CURRENT = [
+    'api',
     'data_dir',
     'user_cache_dir',
     'PACKAGED_DATA',
     'ROOT',
+    'logger',
     '__version__',
 ]
 
-# Backwards compatibility: the table-generation helpers live in levy._build.
-# Exposed lazily (PEP 562) so importing levy does not pull in scipy.integrate
-# for the sake of code only a maintainer regenerating tables ever runs.
+# The 1.x names. Every one of them still works and still returns exactly what
+# it returned in 1.1; each maps to (module, attribute, what to use instead).
+#
+# They are resolved through the module __getattr__ below rather than imported
+# up here, which is the whole point: the warning fires when a name is *used*,
+# not when levy is imported. An import-time warning storm -- one line for every
+# deprecated name, on every `import levy`, whether or not the caller touches
+# any of them -- is the fastest way to get a deprecation reverted.
+_DEPRECATED = {
+    'levy': (
+        'levy.distribution', 'levy',
+        'levy.api.pdf() for a density and levy.api.cdf() for a distribution '
+        'function; the cdf= flag is gone',
+    ),
+    'neglog_levy': (
+        'levy.distribution', 'neglog_levy',
+        'levy.api.logpdf(), which returns log(pdf) -- note the opposite sign',
+    ),
+    'fit_levy': (
+        'levy.fitting', 'fit_levy',
+        'levy.api.fit(), which returns a FitResult and rejects a misspelt '
+        'parameter name instead of ignoring it',
+    ),
+    'random': (
+        'levy.sampling', 'random',
+        'levy.api.rvs(), which takes size= rather than shape=',
+    ),
+    'Parameters': (
+        'levy.parametrization', 'Parameters',
+        'levy.api.StableParams to carry parameters, or '
+        'levy.parametrization.Parameters if you need the fitting wrapper that '
+        'tracks which components are held fixed',
+    ),
+    'convert_to_par0': (
+        'levy.parametrization', 'convert_to_par0',
+        'levy.api.StableParams.from_par(), which validates the result',
+    ),
+    'convert_from_par0': (
+        'levy.parametrization', 'convert_from_par0',
+        'levy.api.StableParams.to_par()',
+    ),
+    'size': ('levy.constants', 'size', 'levy.constants.size'),
+    'par_bounds': ('levy.constants', 'par_bounds', 'levy.constants.par_bounds'),
+    'par_names': ('levy.constants', 'par_names', 'levy.constants.par_names'),
+    'default': ('levy.constants', 'default', 'levy.constants.default'),
+    'f_bounds': ('levy.constants', 'f_bounds', 'levy.constants.f_bounds'),
+}
+
+# Submodules, resolved on attribute access. `levy.distribution` and friends
+# used to become attributes as a side effect of __init__ importing names out of
+# them; now that the 1.x names are resolved lazily, that no longer happens, and
+# `import levy; levy.sampling.random(...)` would break. `api` and `backends`
+# are here for a second reason: resolving them lazily keeps pydantic and torch
+# off the critical path of `import levy`.
+_SUBMODULES = (
+    'api',
+    'constants',
+    'distribution',
+    'fitting',
+    'interpolation',
+    'parametrization',
+    'sampling',
+    'tables',
+)
+
+# The table-generation helpers moved to levy._build. Resolved lazily too, so
+# importing levy does not pull in scipy.integrate for the sake of code only a
+# maintainer regenerating tables ever runs.
 _MOVED_TO_BUILD = {
     '_calculate_levy': 'calculate_levy',
     '_int_levy': 'interpolated_levy',
 }
 
+__all__ = _CURRENT + sorted(_DEPRECATED)
+
 
 def __getattr__(name):
-    """Resolve `levy.api`, and the helpers that moved into ``levy._build``.
-
-    PEP 562 module-level lookup, so ``levy._calculate_levy`` still works
-    without ``import levy`` pulling in ``scipy.integrate``, and ``levy.api``
-    resolves without it pulling in pydantic.
+    """Resolve the 1.x names, `levy.api`, and the ``levy._build`` helpers.
 
     Parameters
     ----------
@@ -169,17 +201,48 @@ def __getattr__(name):
     Returns
     -------
     object
-        The relocated helper.
+        The requested object, unchanged. A deprecated name additionally emits a
+        :exc:`DeprecationWarning` naming its replacement.
 
     Raises
     ------
     AttributeError
         For any other name, as a module lookup normally would.
+
+    Notes
+    -----
+    PEP 562 module-level lookup. Nothing here is a wrapper: a deprecated name
+    resolves to the very same object 1.1 exported, so numbers cannot drift
+    between the old spelling and the new one. Only the lookup is intercepted.
     """
     if name == 'api':
-        import levy.api as api_module
-        return api_module
+        return importlib.import_module('levy.api')
+
+    if name in _DEPRECATED:
+        module_name, attribute, replacement = _DEPRECATED[name]
+        warnings.warn(
+            f'levy.{name} is deprecated since 2.0 and will be removed in 3.0; '
+            f'use {replacement}. It still lives at {module_name}.{attribute} '
+            f'if you want the 1.x behaviour without the warning.',
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return getattr(importlib.import_module(module_name), attribute)
+
     if name in _MOVED_TO_BUILD:
-        from levy import _build
-        return getattr(_build, _MOVED_TO_BUILD[name])
+        return getattr(importlib.import_module('levy._build'), _MOVED_TO_BUILD[name])
+
     raise AttributeError(f'module {__name__!r} has no attribute {name!r}')
+
+
+def __dir__():
+    """List the package's attributes, deprecated names included.
+
+    Returns
+    -------
+    list of str
+        Sorted names, so tab completion and ``dir(levy)`` still show the 1.x
+        spellings that lazy resolution keeps out of the module dictionary.
+    """
+    return sorted(set(globals()) | set(__all__) | set(_SUBMODULES)
+                  | set(_MOVED_TO_BUILD))
