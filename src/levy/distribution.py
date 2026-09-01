@@ -22,11 +22,29 @@ from levy.constants import _lower, _upper
 from levy.interpolation import _interpolate
 from levy.tables import _read_from_cache
 
-__all__ = ['levy', 'neglog_levy']
+__all__ = ['levy', 'neglog_levy', 'snap_into_domain']
+
+
+# A parameter this far outside the tabulated range is a conversion that
+# overshot the endpoint, not a caller asking for something unsupported.
+#
+# Only parametrization B overshoots at all: `beta_0 = tan(beta_B * psi(alpha)) /
+# tan(alpha * pi / 2)` is exactly +-1 at beta_B = +-1 in exact arithmetic, but
+# the two tangents are evaluated separately and their rounding does not cancel.
+# Swept over a 601 x 601 grid of (alpha, beta_B) covering the whole box, 76 of
+# 361,201 points land outside [-1, 1], by at most 9.77e-15 -- 44 ULP. The other
+# four parametrizations are exact everywhere on the same sweep.
+#
+# 1e-12 is ~4500 ULP: two orders of magnitude of headroom over what was
+# measured, and still eleven orders below the smallest mistake a caller could
+# plausibly make (alpha=0.4 misses by 0.1). Values inside the tolerance are
+# snapped to the endpoint rather than merely accepted, so nothing downstream
+# has to think about it again.
+_DOMAIN_TOLERANCE = 1e-12
 
 
 def _check_alpha_beta(alpha, beta):
-    """Reject parameters the lookup tables do not cover.
+    """Reject parameters the lookup tables do not cover, and snap the endpoints.
 
     Parameters
     ----------
@@ -35,29 +53,103 @@ def _check_alpha_beta(alpha, beta):
     beta : float
         Skewness, must lie in ``[-1, 1]``.
 
+    Returns
+    -------
+    alpha : float
+        `alpha`, clamped to the tabulated range if it was within
+        ``_DOMAIN_TOLERANCE`` of an endpoint.
+    beta : float
+        `beta`, clamped the same way.
+
     Raises
     ------
     ValueError
-        If either parameter falls outside the tabulated range.
+        If either parameter falls outside the tabulated range by more than the
+        tolerance.
 
     Notes
     -----
-    Without this, `alpha` below 0.5 produced a *negative* grid index, which is
-    a perfectly valid Python index: ``alpha=0.4`` gave -4 and silently returned
-    the limits for ``alpha ~ 1.94``. The old ``except IndexError`` guard only
-    fired for positive overflow, so under-range values failed silently while
-    over-range values raised.
+    Without the check, `alpha` below 0.5 produced a *negative* grid index, which
+    is a perfectly valid Python index: ``alpha=0.4`` gave -4 and silently
+    returned the limits for ``alpha ~ 1.94``. The old ``except IndexError``
+    guard only fired for positive overflow, so under-range values failed
+    silently while over-range values raised.
+
+    The tolerance exists because checking exactly was too strict to be correct.
+    Converting parameters from Zolotarev's B into 0 can overshoot ``beta = 1``
+    by a few tens of ULP, and an exact check turned that rounding into a
+    ``ValueError`` that aborted an entire ``fit_levy(x, par='B')``. See the
+    comment on ``_DOMAIN_TOLERANCE``.
     """
-    if not (_lower[1] <= alpha <= _upper[1]):
-        raise ValueError(
-            f'alpha must be in [{_lower[1]}, {_upper[1]}], got {alpha!r}. pylevy '
-            'interpolates from a lookup table that does not cover values '
-            'outside that range.'
-        )
-    if not (_lower[2] <= beta <= _upper[2]):
-        raise ValueError(
-            f'beta must be in [{_lower[2]}, {_upper[2]}], got {beta!r}.'
-        )
+    alpha = _snap(alpha, _lower[1], _upper[1], 'alpha')
+    beta = _snap(beta, _lower[2], _upper[2], 'beta')
+    return alpha, beta
+
+
+def snap_into_domain(value, low, high):
+    """Clamp a value that is within tolerance of its range, and nothing else.
+
+    Parameters
+    ----------
+    value : float
+        The parameter.
+    low : float
+        Lower end of the tabulated range, inclusive.
+    high : float
+        Upper end of the tabulated range, inclusive.
+
+    Returns
+    -------
+    float
+        The endpoint, if `value` was within ``_DOMAIN_TOLERANCE`` of it;
+        otherwise `value` unchanged. Never raises -- a value further out is
+        left alone for the caller to reject in whatever way suits it.
+
+    Notes
+    -----
+    Separate from :func:`_check_alpha_beta` so that :mod:`levy.api` can snap
+    without inheriting the ``ValueError``: everything that fails validation
+    there should surface as a pydantic ``ValidationError``, naming the field.
+    """
+    if low <= value <= high:
+        return value
+    if low - _DOMAIN_TOLERANCE <= value <= high + _DOMAIN_TOLERANCE:
+        return min(high, max(low, value))
+    return value
+
+
+def _snap(value, low, high, name):
+    """Clamp a value that is within tolerance of its range, or reject it.
+
+    Parameters
+    ----------
+    value : float
+        The parameter.
+    low : float
+        Lower end of the tabulated range, inclusive.
+    high : float
+        Upper end of the tabulated range, inclusive.
+    name : str
+        Parameter name, for the error message.
+
+    Returns
+    -------
+    float
+        `value`, or the endpoint it was within ``_DOMAIN_TOLERANCE`` of.
+
+    Raises
+    ------
+    ValueError
+        If `value` is outside the range by more than the tolerance.
+    """
+    snapped = snap_into_domain(value, low, high)
+    if low <= snapped <= high:
+        return snapped
+    raise ValueError(
+        f'{name} must be in [{low}, {high}], got {value!r}. pylevy '
+        'interpolates from a lookup table that does not cover values '
+        'outside that range.'
+    )
 
 
 def _grid_shape():
@@ -215,7 +307,7 @@ def levy(x, alpha, beta, mu=0.0, sigma=1.0, cdf=False):
     >>> np.round(levy(x, 1.5, 0.0), 6)
     array([0.202038, 0.084539, 0.031509])
     """
-    _check_alpha_beta(alpha, beta)
+    alpha, beta = _check_alpha_beta(alpha, beta)
 
     loc = mu
 

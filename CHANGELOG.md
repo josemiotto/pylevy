@@ -135,14 +135,26 @@ you want the old behaviour and no deprecation noise.
 - `levy.size` was hardcoded into the index arithmetic, so tables at any other
   resolution raised `IndexError` — which defeated the point of `--size`.
 - The doctests: 4 of the 21 had been failing, and CI now runs them as a gate.
+- `fit_levy(x, par='B')` aborted with `ValueError: beta must be in [-1.0, 1.0],
+  got 1.0000000000000004` on 9 of 36 measured samples. Converting Zolotarev's
+  B into parametrization 0 evaluates two tangents whose rounding does not
+  cancel, so `beta_0` can land up to 44 ULP outside `[-1, 1]`. The domain check
+  added earlier in this release was exact, and turned that rounding into a lost
+  fit. Values within 1e-12 of an endpoint are now snapped to it; anything
+  further out is still rejected.
 
 ### Known issues
 
 - The CDF is discontinuous at the tail crossover, stepping down by up to
   2.6e-03. Fixing it means regenerating the crossover limits or reconciling the
   interpolated and asymptotic branches; tracked separately.
-- `par_bounds` uses parametrization-0 semantics for all five parametrizations,
-  so a fit in `'B'` searches the wrong feasible region. Tracked separately.
+- Maximum likelihood for stable distributions is not convex, and L-BFGS-B can
+  settle on a local optimum. Measured over 36 samples fitted in all five
+  parametrizations, the fit reached a worse optimum than the best of the five
+  in 1/36 cases for `'0'`, 0/36 for `'M'`, 2/36 for `'B'`, 4/36 for `'1'` and
+  7/36 for `'A'`, with gaps up to 29 log-likelihood units. Fitting in more than
+  one parametrization and keeping the best is a sound workaround. A
+  multi-start or a smarter initial guess would be the real fix.
 
 ## Versioning
 

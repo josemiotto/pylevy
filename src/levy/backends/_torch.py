@@ -263,7 +263,7 @@ def _evaluate(x, alpha, beta, mu, sigma, cdf):
         else float(alpha_t.detach())
     beta_value = float(beta_t.detach().reshape(-1)[0]) if beta_t.dim() \
         else float(beta_t.detach())
-    _check_alpha_beta(alpha_value, beta_value)
+    alpha_value, beta_value = _check_alpha_beta(alpha_value, beta_value)
 
     table = _table('cdf' if cdf else 'pdf', x)
     lower_limit = _table('lower_limit', x)
