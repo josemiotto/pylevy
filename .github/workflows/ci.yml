@@ -54,7 +54,13 @@ jobs:
         run: python -c "import numpy, scipy; print('numpy', numpy.__version__, '| scipy', scipy.__version__)"
 
       # The table-building tests regenerate tables by quadrature and take ~70s;
-      # they run once in the `build-tables` job rather than on all five legs.
+      # they run once in the `build-tables` job rather than on every leg.
+      #
+      # Note what is NOT excluded: `slow`. Those are the regression tests for
+      # upstream issue #20 -- the nine seeds whose fits used to stop at a
+      # non-stationary point -- and they have to run everywhere, because the
+      # failure was scale- and platform-sensitive. Adding `and not slow` here
+      # to save two minutes would silently retire them.
       - name: Run tests
         run: python -m pytest tests/ -q -m "not build"
 
