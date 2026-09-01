@@ -1,0 +1,110 @@
+name: CI
+
+on:
+  push:
+    branches: [master, dev]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: py${{ matrix.python-version }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      # Dependencies are installed directly rather than from requirements.txt,
+      # which pins numpy==1.15.0 / scipy==1.1.0 (2018) and cannot be installed
+      # on any currently supported Python.
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install numpy scipy pytest
+
+      - name: Show environment
+        run: python -c "import numpy, scipy; print('numpy', numpy.__version__, '| scipy', scipy.__version__)"
+
+      - name: Run tests
+        run: python -m pytest tests/ -q
+
+  test-numpy1:
+    name: numpy 1.x
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      # The package is still widely used with the NumPy 1.x series, and one
+      # known bug (np.Inf, removed in NumPy 2.0) behaves differently there, so
+      # this leg keeps both paths honest.
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install "numpy<2" "scipy<1.12" pytest
+
+      - name: Run tests
+        run: python -m pytest tests/ -q
+
+  golden:
+    name: golden file is reproducible
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install pinned dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install "numpy==2.5.2" "scipy==1.18.1"
+
+      # Regenerates all 251 cases from scratch and compares them against the
+      # committed file, so a reviewer can trust golden_v1.jsonl without reading
+      # 250 lines of hex floats.
+      #
+      # Deliberately not --strict-bytes: byte-identical regeneration holds only
+      # on a fixed platform, since np.tan / gamma differ by an ULP across libm
+      # builds. The flag exists for local use; gating CI on it would just make
+      # the suite fail on whichever OS the goldens were not generated on.
+      - name: Verify golden file
+        run: python tests/golden/generate.py --check
+
+  legacy-doctests:
+    name: legacy doctests (known failing)
+    runs-on: ubuntu-latest
+    # Informational, not a gate. These are the package's only pre-existing
+    # tests and 4 of them fail on current NumPy/SciPy for two independent
+    # reasons: last-digit drift in the L-BFGS-B optimum, and NumPy 2 rendering
+    # scalars as np.float64(...). Replacing them is the point of this PR.
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install numpy scipy
+
+      - name: Run doctests
+        run: python -m doctest levy/__init__.py -v | tail -n 1
