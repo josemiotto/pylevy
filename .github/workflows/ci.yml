@@ -53,8 +53,10 @@ jobs:
       - name: Show environment
         run: python -c "import numpy, scipy; print('numpy', numpy.__version__, '| scipy', scipy.__version__)"
 
+      # The table-building tests regenerate tables by quadrature and take ~70s;
+      # they run once in the `build-tables` job rather than on all five legs.
       - name: Run tests
-        run: python -m pytest tests/ -q
+        run: python -m pytest tests/ -q -m "not build"
 
   test-numpy1:
     name: numpy 1.x
@@ -80,7 +82,36 @@ jobs:
         run: python -c "import numpy, scipy; print('numpy', numpy.__version__, '| scipy', scipy.__version__)"
 
       - name: Run tests
-        run: python -m pytest tests/ -q
+        run: python -m pytest tests/ -q -m "not build"
+
+  build-tables:
+    name: table generation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install package and test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev]"
+
+      # Exercises levy-tables end to end at a 24x10x13 grid: builds the
+      # densities and crossover limits by quadrature, checks them against
+      # calculate_levy, writes a manifest, and confirms nothing is written into
+      # the installed package.
+      - name: Build tiny tables and verify
+        run: python -m pytest tests/test_build_cli.py -q -m build
+
+      - name: Console script is installed and runs
+        run: |
+          levy-tables where
+          levy-tables build --out "$RUNNER_TEMP/tables" --size 24,10,13 --what pdf
+          test -f "$RUNNER_TEMP/tables/pdf.npz"
+          test -f "$RUNNER_TEMP/tables/manifest.json"
 
   test-numpy2:
     name: numpy 2.x (pinned)

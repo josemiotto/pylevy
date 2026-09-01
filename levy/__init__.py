@@ -94,6 +94,49 @@ f_bounds = {k: {par_names[k][i]: f_bounds[i] for i in range(4)} for k in par_nam
 ROOT = os.path.dirname(os.path.abspath(__file__))
 _data_cache = {}
 
+_TABLE_NAMES = ('pdf', 'cdf', 'lower_limit', 'upper_limit')
+
+
+def user_cache_dir():
+    """ Per-user directory where regenerated tables are looked for.
+
+    Resolved without a third-party dependency: XDG_CACHE_HOME or ~/.cache on
+    Unix, ~/Library/Caches on macOS, LOCALAPPDATA on Windows.
+    """
+    if sys.platform == 'win32':
+        base = os.environ.get('LOCALAPPDATA') or os.path.expanduser(r'~\AppData\Local')
+    elif sys.platform == 'darwin':
+        base = os.path.expanduser('~/Library/Caches')
+    else:
+        base = os.environ.get('XDG_CACHE_HOME') or os.path.expanduser('~/.cache')
+    return os.path.join(base, 'pylevy')
+
+
+def data_dir(writable=False):
+    """ Directory the lookup tables are read from.
+
+    Search order: ``$LEVY_DATA_DIR``, then the user cache directory if it holds
+    a complete set, then the tables shipped inside the package.
+
+    `writable=True` returns where a *new* build should go. Absent an override
+    that is the user cache directory, never the installed package: writing
+    there fails on a read-only or system install, and a partial run would
+    corrupt the installation.
+
+    ``$LEVY_DATA_DIR`` overrides both reads and writes. Pointing it at the
+    installed package is therefore possible, but that is the caller saying so
+    explicitly rather than the default doing it behind their back.
+    """
+    override = os.environ.get('LEVY_DATA_DIR')
+    if override:
+        return override
+    cache = user_cache_dir()
+    if writable:
+        return cache
+    if all(os.path.exists(os.path.join(cache, '{}.npz'.format(n))) for n in _TABLE_NAMES):
+        return cache
+    return ROOT
+
 
 # Cells of cdf.npz that scipy.integrate.quad failed to evaluate when the table
 # was generated. All four are at alpha index 4 (alpha = 0.58), beta indices 13
@@ -190,7 +233,7 @@ def _read_from_cache(key):
     except KeyError:
         # np.load returns a lazy NpzFile; materialise the array and let the
         # archive close instead of leaking the handle until garbage collection.
-        with np.load(os.path.join(ROOT, '{}.npz'.format(key))) as archive:
+        with np.load(os.path.join(data_dir(), '{}.npz'.format(key))) as archive:
             table = archive['arr_0']
         _data_cache[key] = _repair_table(key, table)
         return _data_cache[key]
@@ -279,7 +322,20 @@ def _check_alpha_beta(alpha, beta):
         )
 
 
-def _grid_index(value, axis):
+def _grid_shape():
+    """ Shape of the tables actually loaded.
+
+    `size` is the resolution of the tables shipped with the package, but
+    `levy-tables build --size` can produce others and $LEVY_DATA_DIR can point
+    at them. Anything that converts a parameter into a grid index has to use
+    the real shape, not the constant: doing otherwise raised
+    ``IndexError: index 50 is out of bounds for axis 0 with size 10`` as soon
+    as a table of a different resolution was loaded.
+    """
+    return _read_from_cache('pdf').shape
+
+
+def _grid_index(value, axis, length=None):
     """ Index of the grid cell used to look up the tail-crossover limits.
 
     This truncates rather than rounding to nearest, which is almost certainly
@@ -305,9 +361,11 @@ def _grid_index(value, axis):
     Callers must validate first; the clamp only guards against a value landing
     exactly on an endpoint after floating-point rounding.
     """
+    if length is None:
+        length = _grid_shape()[axis]
     span = _upper[axis] - _lower[axis]
-    index = int((value - _lower[axis]) / span * (size[axis] - 1))
-    return min(size[axis] - 1, max(0, index))
+    index = int((value - _lower[axis]) / span * (length - 1))
+    return min(length - 1, max(0, index))
 
 
 def _psi(alpha):
@@ -483,57 +541,6 @@ class Parameters(object):
             self._x[i] = f_bounds[self.par][self.pnames[i]](vals[j])
 
 
-def _calculate_levy(x, alpha, beta, cdf=False):
-    """
-    Calculation of Levy stable distribution via numerical integration.
-    This is used in the creation of the lookup table.
-    Notice that to compute it in a 'true' x, the tangent must be applied.
-    Example: levy(2, 1.5, 0) = _calculate_levy(np.tan(2), 1.5, 0)
-    "0" parametrization as per http://academic2.americanp.edu/~jpnolan/stable/stable.html
-    Addition: the special case alpha=1.0 was added. Due to an error in the
-    numerical integration, the limit was changed from 0 to 1e-10.
-    """
-    from scipy import integrate
-
-    beta = -beta
-
-    if alpha == 1:
-        li = 1e-10
-
-        # These functions need a correction, since the distribution is displaced, probably get rid of "-u" at the end
-        def func_cos(u):
-            # return np.exp(-u) * np.cos(-beta * 2 / np.pi * (u * np.log(u) - u))
-            return np.exp(-u) * np.cos(-beta * 2 / np.pi * u * np.log(u))
-
-        def func_sin(u):
-            # return np.exp(-u) * np.sin(-beta * 2 / np.pi * (u * np.log(u) - u))
-            return np.exp(-u) * np.sin(-beta * 2 / np.pi * u * np.log(u))
-
-    else:
-        li = 0
-
-        def func_cos(u):
-            ua = u ** alpha
-            return np.exp(-ua) * np.cos(_phi(alpha, beta) * (ua - u))
-
-        def func_sin(u):
-            ua = u ** alpha
-            return np.exp(-ua) * np.sin(_phi(alpha, beta) * (ua - u))
-
-    if cdf:
-        # Cumulative density function
-        return (
-            integrate.quad(lambda u: u and func_cos(u) / u or 0.0, li, np.inf, weight="sin", wvar=x, limlst=1000)[0]
-            + integrate.quad(lambda u: u and func_sin(u) / u or 0.0, li, np.inf, weight="cos", wvar=x, limlst=1000)[0]
-            ) / np.pi + 0.5
-    else:
-        # Probability density function
-        return (
-            integrate.quad(func_cos, li, np.inf, weight="cos", wvar=x, limlst=1000)[0]
-            - integrate.quad(func_sin, li, np.inf, weight="sin", wvar=x, limlst=1000)[0]
-            ) / np.pi
-
-
 def _approximate(x, alpha, beta, cdf=False):
     mask = (x > 0)
     values = np.sin(np.pi * alpha / 2.0) * gamma(alpha) / np.pi * np.power(np.abs(x), -alpha - 1.0)
@@ -545,78 +552,6 @@ def _approximate(x, alpha, beta, cdf=False):
         return values
     else:
         return values * alpha
-
-
-def _make_dist_data_file():
-    """ Generates the lookup tables, writes it to .npz files. """
-
-    xs, alphas, betas = [np.linspace(_lower[i], _upper[i], size[i], endpoint=True) for i in [0, 1, 2]]
-    ts = np.tan(xs)
-
-    logger.info("Generating pdf.npz ...")
-    pdf = np.zeros(size, 'float64')
-    for i, alpha in enumerate(alphas):
-        for j, beta in enumerate(betas):
-            logger.debug("Calculating alpha=%.2f, beta=%.2f", alpha, beta)
-            pdf[:, i, j] = [_calculate_levy(t, alpha, beta, False) for t in ts]
-    np.savez(os.path.join(ROOT, 'pdf.npz'), pdf)
-
-    logger.info("Generating cdf.npz ...")
-    cdf = np.zeros(size, 'float64')
-    for i, alpha in enumerate(alphas):
-        for j, beta in enumerate(betas):
-            logger.debug("Calculating alpha=%.2f, beta=%.2f", alpha, beta)
-            cdf[:, i, j] = [_calculate_levy(t, alpha, beta, True) for t in ts]
-    np.savez(os.path.join(ROOT, 'cdf.npz'), cdf)
-
-
-def _int_levy(x, alpha, beta, cdf=False):
-    """
-    Interpolate densities of the Levy stable distribution specified by alpha and beta.
-
-    Specify cdf=True to obtain the *cumulative* density function.
-
-    Note: may sometimes return slightly negative values, due to numerical inaccuracies.
-    """
-    points = np.empty(np.shape(x) + (3,), 'float64')
-    points[..., 0] = np.arctan(x)
-    points[..., 1] = alpha
-    points[..., 2] = beta
-
-    what = _read_from_cache('cdf') if cdf else _read_from_cache('pdf')
-    return _interpolate(points, what, _lower, _upper)
-
-
-def _get_closest_approx(alpha, beta, upper=True):
-    n = 100000
-    x1, x2 = -50.0, 1e4 - 50.0
-    li1, li2 = 10, 500
-    if upper is False:
-        x1, x2 = -1e4 + 50, 50
-        li1, li2 = -500, -10
-    dx = (x2 - x1) / n
-    x = np.linspace(x1, x2, num=n + 1, endpoint=True)
-    y = 1.0 - _int_levy(x, alpha, beta, cdf=True)
-    z = 1.0 - _approximate(x, alpha, beta, cdf=True)
-    mask = (li1 < x) & (x < li2)
-    return li1 + dx * np.argmin((np.log(z[mask]) - np.log(y[mask])) ** 2.0)
-
-
-def _make_limit_data_files():
-    for upper in [True, False]:
-        string = 'lower' if upper is False else 'upper'
-
-        limits = np.zeros(size[1:], 'float64')
-        alphas, betas = [np.linspace(_lower[i], _upper[i], size[i], endpoint=True) for i in [1, 2]]
-
-        logger.info("Generating %s_limit.npz ...", string)
-
-        for i, alpha in enumerate(alphas):
-            for j, beta in enumerate(betas):
-                limits[i, j] = _get_closest_approx(alpha, beta, upper=upper)
-                logger.debug("Calculating alpha=%.2f, beta=%.2f, limit=%.2f", alpha, beta, limits[i, j])
-
-        np.savez(os.path.join(ROOT, '{}_limit.npz'.format(string)), limits)
 
 
 def levy(x, alpha, beta, mu=0.0, sigma=1.0, cdf=False):
@@ -664,8 +599,8 @@ def levy(x, alpha, beta, mu=0.0, sigma=1.0, cdf=False):
     upper_limit = _read_from_cache('upper_limit')
 
     xr = (np.asarray(x, 'd') - loc) / sigma
-    alpha_index = _grid_index(alpha, 1)
-    beta_index = _grid_index(beta, 2)
+    alpha_index = _grid_index(alpha, 1, lower_limit.shape[0])
+    beta_index = _grid_index(beta, 2, lower_limit.shape[1])
     low_lims = lower_limit[alpha_index, beta_index]
     up_lims = upper_limit[alpha_index, beta_index]
     mask = (low_lims <= xr) & (xr <= up_lims)
@@ -845,18 +780,29 @@ def random(alpha, beta, mu=0.0, sigma=1.0, shape=()):
     return mu + sigma * k
 
 
+# Backwards compatibility: the table-generation helpers moved to levy._build.
+# Exposed lazily (PEP 562) so importing levy does not pull in scipy.integrate
+# for the sake of code only a maintainer regenerating tables ever runs.
+_MOVED_TO_BUILD = {
+    '_calculate_levy': 'calculate_levy',
+    '_int_levy': 'interpolated_levy',
+}
+
+
+def __getattr__(name):
+    if name in _MOVED_TO_BUILD:
+        from levy import _build
+        return getattr(_build, _MOVED_TO_BUILD[name])
+    raise AttributeError('module {!r} has no attribute {!r}'.format(__name__, name))
+
+
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO, format='%(message)s')
-
-    if "build" in sys.argv[1:]:
-        _make_dist_data_file()
-        _make_limit_data_files()
-
-    logger.info("Testing fit_levy using parametrization 0 and fixed alpha (1.5).")
-
-    N = 1000
-    logger.info("%d points, result should be (1.5, 0.5, 0.0, 1.0).", N)
-    x0 = random(1.5, 0.5, 0.0, 1.0, shape=(N,))
-
-    result0 = fit_levy(x0, par='0', alpha=1.5)
-    logger.info("%s", result0)
+    from levy._build.cli import main
+    logger.warning(
+        "`python -m levy build` is superseded by the `levy-tables` command, "
+        "which writes to a cache directory instead of into the installed package."
+    )
+    # Pass the subcommand through. Prepending 'build' unconditionally turned
+    # `python levy/__init__.py where` into `build where`; no arguments still
+    # means build, which is what this entry point has always done.
+    sys.exit(main(sys.argv[1:] or ['build']))
