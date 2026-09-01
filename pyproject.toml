@@ -64,9 +64,13 @@ Issues = "https://github.com/josemiotto/pylevy/issues"
 [tool.setuptools.dynamic]
 version = { attr = "levy.__version__" }
 
+[tool.setuptools.package-dir]
+"" = "src"
+
 # Explicit, because flat-layout auto-discovery sees both `levy/` and `tests/`
 # and refuses to guess.
 [tool.setuptools.packages.find]
+where = ["src"]
 include = ["levy*"]
 namespaces = false
 
