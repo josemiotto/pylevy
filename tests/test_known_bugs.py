@@ -85,45 +85,6 @@ def test_tail_crossover_is_accurate_off_the_grid():
 
 
 # --------------------------------------------------------------------------
-# (l) the alpha ~ 1 skewed sampler is ill-conditioned by construction
-# --------------------------------------------------------------------------
-
-
-@xfail
-def test_alpha_1_skewed_sampler_is_well_conditioned():
-    """levy/__init__.py:610-615 sidesteps alpha == 1 by nudging:
-
-        radius = 1e-15
-        if np.absolute(alpha - 1.0) < radius:
-            alpha = 1.0 + radius
-
-    The comment claims this "works fine for alpha infinitesimally greater or
-    lower than 1.0". It does not. At alpha = 1 + 1e-15, ``tan(pi*alpha/2)``
-    evaluates to -5.83e+14 -- the function is sitting on its pole -- so
-    ``_phi(alpha, beta) = beta * tan(pi*alpha/2)`` is ~1.75e+14 for beta=0.3 and
-    **a single ULP of alpha changes it by 11.4%**. ``1.0 - alpha`` is also pure
-    cancellation (-1.11e-15).
-
-    Consequences: samples for alpha ~ 1 with beta != 0 are not reproducible
-    across libm builds (this was caught by CI disagreeing with a local run),
-    and their accuracy is governed by the last bit of a tangent near infinity.
-    beta == 0 is unaffected, because zero times the pole is zero.
-
-    The fix is the closed form: Chambers, Mallows & Stuck (1976) give a
-    separate alpha == 1 branch using log terms, which is what
-    ``_calculate_levy`` already does for the density (levy/__init__.py:305).
-    """
-    alpha = 1.0 + 1e-15
-    phi = levy._phi(alpha, 0.3)
-    phi_one_ulp_away = levy._phi(np.nextafter(alpha, 2.0), 0.3)
-    relative_swing = abs(phi_one_ulp_away - phi) / abs(phi)
-    assert relative_swing < 1e-6, (
-        f"one ULP in alpha moves _phi by {relative_swing:.1%}; "
-        f"tan(pi*alpha/2) = {np.tan(np.pi * alpha / 2):.3e}"
-    )
-
-
-# --------------------------------------------------------------------------
 # (h) four corrupt cells in the shipped CDF table
 # --------------------------------------------------------------------------
 

@@ -265,3 +265,81 @@ def test_random_at_alpha_2_agrees_with_the_package_cdf():
         lambda v: levy.levy(np.asarray(v, dtype=float), 2.0, 0.0, mu=1.0, sigma=2.0, cdf=True),
     )
     assert result.pvalue > 0.01, f"KS p={result.pvalue:.4g}"
+
+
+# --------------------------------------------------------------------------
+# random() near alpha == 1 (was: nudged onto the pole of tan, producing NaN
+# and biased samples at beta = +-1)
+# --------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("beta", [-1.0, -0.8, -0.3, 0.0, 0.3, 0.8, 1.0])
+def test_random_at_alpha_1_produces_no_nan(beta):
+    """The old 1e-15 nudge made the base of a fractional power go negative
+    for ~0.9% of draws at beta = +-1, yielding NaN.
+    """
+    np.random.seed(11)
+    sample = levy.random(1.0, beta, 0.0, 1.0, shape=(50000,))
+    assert np.all(np.isfinite(sample)), (
+        f"{100 * np.mean(~np.isfinite(sample)):.3f}% non-finite samples"
+    )
+
+
+@pytest.mark.parametrize("beta", [-1.0, 0.0, 0.8, 1.0])
+def test_random_at_alpha_1_matches_the_package_cdf(beta):
+    """At beta=1 the surviving samples were also from the wrong distribution:
+    KS against this package's own CDF gave p = 3.17e-07 over 200k draws.
+    """
+    stats = pytest.importorskip("scipy.stats")
+    np.random.seed(11)
+    sample = levy.random(1.0, beta, 0.0, 1.0, shape=(60000,))
+    result = stats.kstest(
+        sample,
+        lambda v: levy.levy(np.asarray(v, dtype=float), 1.0, beta, cdf=True),
+    )
+    assert result.pvalue > 1e-3, f"KS p={result.pvalue:.4g} for beta={beta}"
+
+
+@pytest.mark.parametrize("offset", [-1e-9, -1e-12, 0.0, 1e-12, 1e-9])
+def test_alpha_1_nudge_keeps_the_side_the_caller_asked_for(offset):
+    """The nudge must not move alpha across 1.
+
+    Forcing both sides up to 1 + radius flips the sign of (1 - alpha) and makes
+    random() discontinuous at alpha == 1. Exactly 1.0 still goes up: 1.0 - 1.0
+    is +0.0, and copysign follows the sign of the zero.
+    """
+    alpha = 1.0 + offset
+    np.random.seed(0)
+    sample = levy.random(alpha, 0.5, 0.0, 1.0, shape=(2000,))
+    assert np.isfinite(sample).all()
+
+    expected_side = np.copysign(1.0, offset) if offset else 1.0
+    np.random.seed(0)
+    mirror = levy.random(
+        1.0 + expected_side * levy._ALPHA_1_RADIUS, 0.5, 0.0, 1.0, shape=(2000,)
+    )
+    np.testing.assert_allclose(sample, mirror, rtol=0, atol=0)
+
+
+def test_alpha_1_nudge_is_well_conditioned():
+    """One ULP of alpha must not move phi appreciably.
+
+    At the old radius of 1e-15, tan(pi*alpha/2) sat 1e-15 from its pole at
+    -5.83e+14 and a single ULP moved phi by 11.4%.
+    """
+    alpha = 1.0 + levy._ALPHA_1_RADIUS
+    phi = levy._phi(alpha, 0.3)
+    phi_one_ulp_away = levy._phi(np.nextafter(alpha, 2.0), 0.3)
+    swing = abs(phi_one_ulp_away - phi) / abs(phi)
+    assert swing < 1e-6, f"one ULP in alpha moves _phi by {swing:.2%}"
+
+
+def test_alpha_1_is_continuous_with_its_neighbourhood():
+    """alpha exactly 1 must not be an outlier against alpha just either side."""
+    stats = pytest.importorskip("scipy.stats")
+    samples = {}
+    for alpha in (0.9999, 1.0, 1.0001):
+        np.random.seed(5)
+        samples[alpha] = levy.random(alpha, 0.7, 0.0, 1.0, shape=(60000,))
+    assert stats.ks_2samp(samples[1.0], samples[0.9999]).pvalue > 1e-3
+    assert stats.ks_2samp(samples[1.0], samples[1.0001]).pvalue > 1e-3
