@@ -41,6 +41,14 @@ public name still works and still returns the same floats, bit for bit.
   support is detected by looking in `sys.modules`, so the fast path is one
   dictionary lookup. `tests/test_no_pandas.py` runs the whole API in a
   subprocess with pandas blocked at the import system.
+- An optional `torch` extra: `levy.backends`, with a torch implementation of
+  the interpolation written to be differentiable. Hand `pdf`, `cdf` or `logpdf`
+  a tensor -- or select the backend with `levy.set_backend('torch')` or
+  `levy.using('torch')` -- and gradients flow to `alpha`, `beta`, `mu` and
+  `sigma`, so a stable distribution can sit inside a larger torch model and be
+  fitted by gradient descent. `torch.autograd.gradcheck` passes for all four
+  parameters, for pdf, cdf and the negative log density, in float64. NumPy
+  remains the default, and an install without the extra never imports torch.
 
 ### Changed
 
