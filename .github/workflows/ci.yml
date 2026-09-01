@@ -12,12 +12,32 @@ concurrency:
 
 jobs:
   test:
-    name: py${{ matrix.python-version }}
-    runs-on: ubuntu-latest
+    name: ${{ matrix.label }}
+    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
+      # Every supported Python on Linux, plus both ends of the range on macOS
+      # and Windows. The full 3 x 5 cross product would be 15 jobs for very
+      # little more information: what differs across operating systems here is
+      # libm (an ULP in np.tan or gamma) and path handling, and neither depends
+      # on the Python minor version.
+      #
+      # Windows is not decorative. `user_cache_dir()` has a LOCALAPPDATA branch
+      # that nothing has ever executed, and the table cache is all path
+      # handling. Both arrive later in this series, so the matrix goes in first
+      # and every commit after it is tested on all three systems -- rather than
+      # the coverage arriving at the end, after the code it exists to check.
       matrix:
-        python-version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
+        include:
+          - {os: ubuntu-latest,  python-version: "3.9",  label: "py3.9"}
+          - {os: ubuntu-latest,  python-version: "3.10", label: "py3.10"}
+          - {os: ubuntu-latest,  python-version: "3.11", label: "py3.11"}
+          - {os: ubuntu-latest,  python-version: "3.12", label: "py3.12"}
+          - {os: ubuntu-latest,  python-version: "3.13", label: "py3.13"}
+          - {os: macos-latest,   python-version: "3.10", label: "macos py3.10"}
+          - {os: macos-latest,   python-version: "3.13", label: "macos py3.13"}
+          - {os: windows-latest, python-version: "3.10", label: "windows py3.10"}
+          - {os: windows-latest, python-version: "3.13", label: "windows py3.13"}
     steps:
       - uses: actions/checkout@v4
 
@@ -54,6 +74,32 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           python -m pip install "numpy<2" "scipy<1.12" pytest
+          python -m pip install -e . --no-deps
+
+      - name: Show environment
+        run: python -c "import numpy, scipy; print('numpy', numpy.__version__, '| scipy', scipy.__version__)"
+
+      - name: Run tests
+        run: python -m pytest tests/ -q
+
+  test-numpy2:
+    name: numpy 2.x (pinned)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # The matrix legs above take whatever numpy resolves to today, which is a
+      # moving target. This one pins the 2.x series explicitly, so the pair of
+      # legs states the supported range as a fact rather than as a coincidence
+      # of when CI last ran.
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install "numpy>=2,<3" "scipy>=1.13" pytest
           python -m pip install -e . --no-deps
 
       - name: Show environment
