@@ -71,7 +71,9 @@ from levy._typing import (
     Seed,
     Size,
 )
+from levy.constants import _lower, _upper
 from levy.distribution import levy as _levy
+from levy.distribution import snap_into_domain
 from levy.fitting import fit_levy as _fit_levy
 from levy.parametrization import Parameters
 from levy.sampling import random as _random
@@ -162,9 +164,15 @@ class StableParams(BaseModel):
         values = np.asarray([alpha, beta, loc, scale], dtype='d')
         if par != '0':
             values = Parameters.convert(values, par, '0')
+        # Snap first, validate second. Converting from B evaluates two tangents
+        # whose rounding does not cancel, so a perfectly legal beta_B can land
+        # a few tens of ULP outside [-1, 1]; validating that literally would
+        # reject a parameter set that is in range. Only the rounding is
+        # absorbed -- anything further out passes through untouched and is
+        # rejected below with a ValidationError naming the field.
         return cls(
-            alpha=float(values[0]),
-            beta=float(values[1]),
+            alpha=snap_into_domain(float(values[0]), _lower[1], _upper[1]),
+            beta=snap_into_domain(float(values[1]), _lower[2], _upper[2]),
             mu=float(values[2]),
             sigma=float(values[3]),
         )
@@ -806,6 +814,11 @@ def fit(
 
     parameters, nll = _fit_levy(as_sample(x), par=par, **fixed)
     alpha, beta, mu, sigma = (float(v) for v in parameters.get('0'))
+    # A fit in B can report a beta_0 a few ULP outside [-1, 1] for the same
+    # rounding reason as from_par. Without this, fit() raised a ValidationError
+    # on the result it had just successfully computed.
+    alpha = snap_into_domain(alpha, _lower[1], _upper[1])
+    beta = snap_into_domain(beta, _lower[2], _upper[2])
     return FitResult(
         params=StableParams(alpha=alpha, beta=beta, mu=mu, sigma=sigma),
         negative_log_likelihood=float(nll),
