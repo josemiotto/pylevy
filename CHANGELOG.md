@@ -135,6 +135,18 @@ you want the old behaviour and no deprecation noise.
 - `levy.size` was hardcoded into the index arithmetic, so tables at any other
   resolution raised `IndexError` — which defeated the point of `--size`.
 - The doctests: 4 of the 21 had been failing, and CI now runs them as a gate.
+- Fits could stop at a point that was not even stationary, returning parameters
+  pinned near a boundary. Reported upstream as
+  [#20](https://github.com/josemiotto/pylevy/issues/20) for `alpha=1.6`,
+  `sigma=0.005`. The search always started at `sigma = 1`, whatever the scale of
+  the data; 200 times too wide, and L-BFGS-B did not recover. Measured over 400
+  samples of 10,000 points, **2.25% of fits failed**, leaving up to 9,054
+  log-likelihood units unclaimed; the same sweep with the fix in place fails
+  **0 of 400**. A second starting point derived from the
+  data's median and interquartile range is now tried alongside the historical
+  one, and the better optimum wins. Because the old start is still a candidate,
+  the returned likelihood can only improve: over the ten golden fit cases,
+  three improve and none get worse.
 - `fit_levy(x, par='B')` aborted with `ValueError: beta must be in [-1.0, 1.0],
   got 1.0000000000000004` on 9 of 36 measured samples. Converting Zolotarev's
   B into parametrization 0 evaluates two tangents whose rounding does not
@@ -149,12 +161,12 @@ you want the old behaviour and no deprecation noise.
   2.6e-03. Fixing it means regenerating the crossover limits or reconciling the
   interpolated and asymptotic branches; tracked separately.
 - Maximum likelihood for stable distributions is not convex, and L-BFGS-B can
-  settle on a local optimum. Measured over 36 samples fitted in all five
-  parametrizations, the fit reached a worse optimum than the best of the five
-  in 1/36 cases for `'0'`, 0/36 for `'M'`, 2/36 for `'B'`, 4/36 for `'1'` and
-  7/36 for `'A'`, with gaps up to 29 log-likelihood units. Fitting in more than
-  one parametrization and keeping the best is a sound workaround. A
-  multi-start or a smarter initial guess would be the real fix.
+  still settle on a local optimum even from the improved starting point. The
+  two-start search above removes the scale-mismatch failures but not every
+  case: fitting in `'B'` on badly scaled data can still stop short of the
+  optimum reached in `'0'`. Fitting in more than one parametrization and
+  keeping the best likelihood remains a sound workaround; more starting points
+  would reduce it further, at proportional cost.
 
 ## Versioning
 
