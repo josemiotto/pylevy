@@ -1,0 +1,15 @@
+# Replaces the committed `MANIFEST`, which was a *generated* distutils artifact
+# rather than a source file (it even listed itself). MANIFEST.in is the
+# hand-authored template setuptools actually reads.
+
+include LICENSE
+include README.md
+include pyproject.toml
+
+recursive-include levy *.npz
+
+recursive-include tests *.py
+include tests/golden/golden_v1.jsonl
+
+prune docs/_build
+prune docs/build
