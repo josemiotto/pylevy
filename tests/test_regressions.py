@@ -376,13 +376,17 @@ def test_repaired_cells_respect_skew_symmetry():
     """An independent check that the interpolated values are right.
 
     For a stable law, F(x; alpha, beta) = 1 - F(-x; alpha, -beta). The repair
-    fills the two beta = +-0.74 columns separately, so this holding to 1e-9 is
-    real evidence and not a tautology.
+    fills the two beta = +-0.74 columns separately, so this holding is real
+    evidence and not a tautology.
+
+    The tolerance is 1e-6 rather than 1e-9 because the tables are stored as
+    float32, whose ~6e-08 relative resolution is the floor on any identity of
+    this kind.
     """
     x = np.array([-2.0, -1.0, -0.5, 0.0, 0.5, 1.0, 2.0])
     positive = levy.levy(x, 0.58, 0.74, cdf=True)
     negative = levy.levy(-x[::-1], 0.58, -0.74, cdf=True)
-    np.testing.assert_allclose(positive, 1.0 - negative[::-1], rtol=0, atol=1e-9)
+    np.testing.assert_allclose(positive, 1.0 - negative[::-1], rtol=0, atol=1e-6)
 
 
 def test_repaired_column_is_monotone():

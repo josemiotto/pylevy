@@ -71,7 +71,7 @@ include = ["levy*"]
 namespaces = false
 
 [tool.setuptools.package-data]
-levy = ["*.npz"]
+levy = ["data/*.npz", "data/manifest.json"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
