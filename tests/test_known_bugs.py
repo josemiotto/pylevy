@@ -91,24 +91,25 @@ def test_tail_crossover_is_accurate_off_the_grid():
 
 @xfail
 def test_cdf_table_has_no_corrupt_cells():
-    """``cdf.npz`` holds 5.72e+307 at x-index {99,100}, alpha-index 4
-    (alpha=0.58), beta-index {13,87} (beta=-+0.74) -- quadrature failures baked
-    into the table in 2017.
+    """The *shipped file* still holds 5.72e+307 in four cells.
+
+    x-index {99,100}, alpha-index 4 (alpha=0.58), beta-index {13,87}
+    (beta=-+0.74). ``levy()`` now repairs these when it loads the table, so the
+    user-visible symptom is gone (see test_regressions.py), but the .npz on disk
+    is unchanged and this stays red until the tables are regenerated.
+
+    Note this is not a storage error: ``_calculate_levy`` still returns
+    5.72e+307 for those exact arguments, so a regeneration with the current
+    generator would reproduce them. Those grid points are the two closest to
+    x = 0, where the oscillatory weight passed to ``integrate.quad`` degenerates.
 
     These four are also the only cells in either table that exceed the float32
     maximum, so a naive ``.astype(np.float32)`` would turn a wrong number into
-    ``inf``. They must be repaired before the tables are down-converted.
+    ``inf``. They must be fixed at the source before the tables are converted.
     """
     cdf = _table("cdf")
     assert np.isfinite(cdf).all()
     assert cdf.max() <= 1.0 + 1e-6
-
-
-@xfail
-def test_cdf_is_usable_at_the_corrupt_cells():
-    """User-visible symptom of the corrupt cells."""
-    result = levy.levy(np.array([0.0]), 0.58, 0.74, cdf=True)
-    assert 0.0 <= result[0] <= 1.0
 
 
 # --------------------------------------------------------------------------
@@ -118,9 +119,18 @@ def test_cdf_is_usable_at_the_corrupt_cells():
 
 @xfail
 def test_pdf_is_never_negative():
-    """A density must not be negative. The shipped ``pdf.npz`` has 1845
-    negative entries (min -5.44e-08) and interpolation amplifies these to
-    -1.44e-05. ``neglog_levy`` hides it behind ``np.maximum(1e-100, ...)``.
+    """A density must not be negative; ``levy()`` returns down to -1.44e-05.
+
+    The obvious culprit -- 1845 negative entries in ``pdf.npz`` (min -5.44e-08)
+    -- is *not* the cause. Clamping every one of them to zero changes ``levy()``
+    output by at most 1.642e-18 and leaves the most negative returned value
+    exactly where it was, at -4.488e-08.
+
+    The real source is the interpolator: Catmull-Rom weights have negative
+    lobes, so a strictly non-negative grid can still interpolate below zero.
+    Fixing this means clamping at the output of ``levy()`` or using a
+    shape-preserving interpolant, not repairing the table. ``neglog_levy``
+    currently hides it behind ``np.maximum(1e-100, ...)``.
     """
     worst = min(
         levy.levy(np.linspace(-500.0, 500.0, 4001), alpha, beta).min()
