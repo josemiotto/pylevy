@@ -199,6 +199,31 @@ jobs:
       - name: mypy (typed surface)
         run: python -m mypy
 
+  extras:
+    name: optional extras
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # The five `test` legs above deliberately run *without* the extras, which
+      # is what proves an install without them works. This one is the other
+      # half: pandas installed, so tests/test_pandas.py actually runs instead of
+      # being skipped.
+      - name: Install package with extras
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev,pandas]"
+
+      - name: Run tests
+        run: python -m pytest tests/ -q -m "not build"
+
+      - name: pandas support is exercised, not skipped
+        run: python -m pytest tests/test_pandas.py -q --no-header -p no:cacheprovider
+
   doctests:
     name: doctests
     runs-on: ubuntu-latest
