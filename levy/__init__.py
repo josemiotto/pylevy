@@ -526,7 +526,8 @@ def neglog_levy(x, alpha, beta, mu, sigma):
     return -np.log(np.maximum(1e-100, levy(x, alpha, beta, mu, sigma)))
 
 
-def fit_levy(x, par='0', **kwargs):
+
+def fit_levy(x, par='0', weights=None, **kwargs):
     """
     Estimate parameters of Levy stable distribution given data x, using
     Maximum Likelihood estimation.
@@ -554,6 +555,7 @@ def fit_levy(x, par='0', **kwargs):
     :param x: values to be fitted
     :type x: :class:`~numpy.ndarray`
     :param par: parametrization
+    :param weights: optional weight vector for each data point
     :type par: str
     :return: a tuple with a `Parameters` object and the negative log likelihood of the data.
     :rtype: tuple
@@ -565,10 +567,16 @@ def fit_levy(x, par='0', **kwargs):
     parameters = Parameters(par=par, **values)
     temp = Parameters(par=par, **values)
 
+    if weights is not None:
+        assert len(weights) == len(x), 'weight vector must be same length as data'
+        assert np.min(weights) >= 0, 'weights must all be nonnegative'
+
     def neglog_density(param):
         temp.x = param
         alpha, beta, mu, sigma = temp.get('0')
-        return np.sum(neglog_levy(x, alpha, beta, mu, sigma))
+        if weights is None:
+            return np.sum(neglog_levy(x, alpha, beta, mu, sigma))
+        return np.sum(weights * neglog_levy(x, alpha, beta, mu, sigma))
 
     bounds = tuple(par_bounds[i] for i in parameters.variables)
     res = optimize.minimize(neglog_density, parameters.x, method='L-BFGS-B', bounds=bounds)
