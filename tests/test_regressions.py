@@ -419,3 +419,38 @@ def test_table_load_does_not_leak_the_npz_handle():
         # passes whether or not the handle was closed.
         gc.collect()
     assert isinstance(table, np.ndarray)
+
+
+# --------------------------------------------------------------------------
+# Naming
+# --------------------------------------------------------------------------
+
+
+def test_sampler_has_no_single_letter_locals():
+    """The CMS transform was written in 14 one- and two-letter locals.
+
+    Guard so they do not creep back. Loop indices and comprehension variables
+    are exempt; this only looks at plain assignments.
+    """
+    import ast
+
+    import levy.sampling
+
+    with open(levy.sampling.__file__, encoding="utf-8") as handle:
+        source = handle.read()
+    tree = ast.parse(source)
+    offenders = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Assign):
+            for target in node.targets:
+                # Walk the target rather than isinstance-ing it: a tuple
+                # unpacking like `a, b = ...` keeps its Names one level
+                # down, so the guard used to miss exactly the terse names
+                # it exists to catch.
+                for name in ast.walk(target):
+                    if isinstance(name, ast.Name) and len(name.id.lstrip("_")) <= 2:
+                        offenders.add(name.id)
+    offenders -= {"pi"}  # np.pi alias, reads fine
+    assert not offenders, "single/double-letter locals in the sampler: {}".format(
+        sorted(offenders)
+    )

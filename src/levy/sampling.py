@@ -86,19 +86,41 @@ def random(alpha, beta, mu=0.0, sigma=1.0, shape=()):
     if np.absolute(alpha - 1.0) < _ALPHA_1_RADIUS:
         alpha = 1.0 + np.copysign(_ALPHA_1_RADIUS, alpha - 1.0)
 
-    r1 = np.random.random(shape)
-    r2 = np.random.random(shape)
+    # Chambers, Mallows & Stuck (1976), "A Method for Simulating Stable Random
+    # Variables", JASA 71(354), 340-344. Two uniforms are transformed into a
+    # standard stable variate; mu and sigma are applied at the end.
+    #
+    # These were a..k before. The algebra is unchanged, only the names.
+    uniform_angle = np.random.random(shape)          # was r1
+    uniform_exponential = np.random.random(shape)    # was r2
     pi = np.pi
 
-    a = 1.0 - alpha
-    b = r1 - 0.5
-    c = a * b * pi
-    e = _phi(alpha, beta)
-    f = (-(np.cos(c) + e * np.sin(c)) / (np.log(r2) * np.cos(b * pi))) ** (a / alpha)
-    g = np.tan(pi * b / 2.0)
-    h = np.tan(c / 2.0)
-    i = 1.0 - g ** 2.0
-    j = f * (2.0 * (g - h) * (g * h + 1.0) - (h * i - 2.0 * g) * e * 2.0 * h)
-    k = j / (i * (h ** 2.0 + 1.0)) + e * (f - 1.0)
+    one_minus_alpha = 1.0 - alpha                    # was a
+    centred_uniform = uniform_angle - 0.5            # was b, in [-1/2, 1/2)
+    angle = one_minus_alpha * centred_uniform * pi   # was c
+    skew_term = _phi(alpha, beta)                    # was e; beta*tan(pi*alpha/2)
 
-    return mu + sigma * k
+    # was f
+    scale_factor = (
+        -(np.cos(angle) + skew_term * np.sin(angle))
+        / (np.log(uniform_exponential) * np.cos(centred_uniform * pi))
+    ) ** (one_minus_alpha / alpha)
+
+    tan_half_turn = np.tan(pi * centred_uniform / 2.0)   # was g
+    tan_half_angle = np.tan(angle / 2.0)                 # was h
+    one_minus_tan_squared = 1.0 - tan_half_turn ** 2.0   # was i
+
+    # was j
+    numerator = scale_factor * (
+        2.0 * (tan_half_turn - tan_half_angle) * (tan_half_turn * tan_half_angle + 1.0)
+        - (tan_half_angle * one_minus_tan_squared - 2.0 * tan_half_turn)
+        * skew_term * 2.0 * tan_half_angle
+    )
+
+    # was k
+    standard_sample = (
+        numerator / (one_minus_tan_squared * (tan_half_angle ** 2.0 + 1.0))
+        + skew_term * (scale_factor - 1.0)
+    )
+
+    return mu + sigma * standard_sample
