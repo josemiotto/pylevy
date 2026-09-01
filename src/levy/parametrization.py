@@ -15,8 +15,8 @@
 
 """Conversion between the five parametrizations, and the Parameters wrapper.
 
-Nolan 0 and 1, Zolotarev M, A and B. Everything is routed through
-parametrization 0, which is what the lookup tables are built in.
+Nolan 0 and 1 [Nolan2020]_, Zolotarev M, A and B [Zolotarev1986]_. Everything is
+routed through parametrization 0, which is what the lookup tables are built in.
 
 Attributes
 ----------
@@ -27,8 +27,9 @@ convert_from_par0 : dict of {str: callable}
 
 References
 ----------
-.. [1] J. P. Nolan, "Univariate Stable Distributions", Springer, 2020.
-.. [2] V. M. Zolotarev, "One-dimensional Stable Distributions", AMS, 1986.
+.. [Nolan2020] J. P. Nolan, "Univariate Stable Distributions", Springer, 2020.
+.. [Zolotarev1986] V. M. Zolotarev, "One-dimensional Stable Distributions",
+   AMS, 1986.
 """
 
 import numpy as np
