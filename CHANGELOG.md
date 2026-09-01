@@ -24,8 +24,18 @@ public name still works and still returns the same floats, bit for bit.
 - A characterization test suite: 251 golden records, stored as exact hex floats,
   covering `levy`, `neglog_levy`, `random` and `fit_levy` in all five
   parametrizations. Every change since is measured against it.
-- CI on Linux × Python 3.9–3.13, plus a NumPy 1.x leg, a table-generation leg, a
-  golden-reproducibility leg, a lint/docstring leg and a doctest leg.
+- CI on Linux × Python 3.9–3.13 plus macOS and Windows at both ends of the
+  range, pinned NumPy 1.x and 2.x legs, and separate legs for table generation,
+  golden reproducibility, lint and docstrings, doctests, the optional extras,
+  and the documentation build.
+- Project documentation and automation: `CONTRIBUTING.md`, `AGENTS.md`,
+  `CODE_OF_CONDUCT.md`, `CITATION.cff`, issue and pull-request templates,
+  Dependabot for pip and GitHub Actions, and `.pre-commit-config.yaml`.
+- A release workflow: a `vX.Y.Z` tag is refused unless it matches
+  `levy.__version__`, the built wheel is smoke-tested in a clean environment
+  before anything is published, publishing goes through PyPI Trusted Publishing
+  (OIDC, no stored secret), and the lookup tables plus their manifest are
+  attached to the GitHub release as a download fallback for `levy-tables`.
 - `levy-tables`, a console script that regenerates the lookup tables into a user
   cache directory, with a `manifest.json` recording grid size, library versions
   and per-array SHA256.
