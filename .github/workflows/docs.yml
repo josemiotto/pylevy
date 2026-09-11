@@ -1,19 +1,30 @@
 name: Docs
 
-# Builds the documentation on every pull request, and publishes it to GitHub
-# Pages from the default branch.
+# Builds the documentation on every pull request and on master, with -W, and
+# runs the doctest and linkcheck builders. It does not publish anywhere.
 #
-# Why Pages rather than only Read the Docs: this workflow needs no third-party
-# account and no maintainer credential, and it builds on every PR, so a broken
-# docs build is caught by the person who broke it. RTD PR previews need
-# configuration that cannot be done from a fork. .readthedocs.yaml is committed
-# too, so the existing readthedocs.io URL keeps working either way.
+# Publishing to GitHub Pages was removed on 2026-09-11: Pages is not enabled
+# on this repository, enabling it takes a repository admin (Settings -> Pages
+# -> Source: GitHub Actions), and actions/deploy-pages fails until it is, so
+# a publish job turned every push to master red for a reason nobody with
+# write access could fix. The built site is uploaded as a workflow artifact
+# instead, so a reviewer can still download and read it.
 #
-# One-time setup, needing repository admin: Settings -> Pages -> Source must
-# be set to "GitHub Actions". actions/deploy-pages cannot enable Pages itself,
-# so until that is done the `publish to Pages` job fails on every push to
-# master while the `build` job -- the one that gates pull requests -- is
-# unaffected.
+# To publish once Pages is enabled, add back a job after `build`:
+#
+#   publish:
+#     needs: build
+#     if: github.ref == 'refs/heads/master'
+#     runs-on: ubuntu-latest
+#     permissions: {pages: write, id-token: write}
+#     environment: {name: github-pages, url: ${{ steps.deployment.outputs.page_url }}}
+#     steps:
+#       - id: deployment
+#         uses: actions/deploy-pages@v4
+#
+# and switch the artifact step below to actions/upload-pages-artifact.
+# docs/proposals/repo-governance.md lists the admin setting with the others.
+# .readthedocs.yaml is committed too, so the readthedocs.io URL keeps working.
 
 on:
   push:
@@ -62,10 +73,14 @@ jobs:
       - name: Doctest the documentation
         run: python -m sphinx -b doctest docs/source docs/_build/doctest
 
-      - uses: actions/upload-pages-artifact@v3
-        if: github.ref == 'refs/heads/master'
+      # A plain artifact, not a Pages artifact: there is no Pages site to
+      # deploy to yet (see the header). Uploaded on every run, so a reviewer
+      # can download the rendered site for a pull request.
+      - uses: actions/upload-artifact@v4
         with:
+          name: docs-html
           path: docs/_build/html
+          retention-days: 14
 
   linkcheck:
     name: links
@@ -87,18 +102,3 @@ jobs:
 
       - name: linkcheck
         run: python -m sphinx -b linkcheck docs/source docs/_build/linkcheck
-
-  publish:
-    name: publish to Pages
-    needs: build
-    if: github.ref == 'refs/heads/master'
-    runs-on: ubuntu-latest
-    permissions:
-      pages: write
-      id-token: write
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - id: deployment
-        uses: actions/deploy-pages@v4
