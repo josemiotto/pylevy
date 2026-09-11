@@ -1,0 +1,186 @@
+# Changelog
+
+All notable changes to this project are documented here.
+
+The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [2.0.0] - unreleased
+
+The package could not be built on Python 3.12, had no tests and no CI, and
+carried several defects that returned wrong numbers silently. 2.0 fixes that
+and adds a typed, validated API. **Every 1.x name still works**, and away
+from the defects listed under *Fixed* below -- calls that returned a wrong
+number, a NaN, or an error -- it returns the same floats, bit for bit.
+
+### Added
+
+- `levy.api` — a typed, keyword-only API: `pdf`, `cdf`, `logpdf`, `rvs`, `fit`,
+  with a frozen `StableParams` carrying validated parameters. Out-of-range
+  values are rejected where they are written, naming the field. Pydantic is used
+  only at this boundary; `tests/test_hot_loop.py` counts model constructions
+  during a fit and fails if the number grows with the data.
+- `py.typed`, so the annotations are visible to a downstream type checker.
+  `mypy --strict` runs in CI over the typed surface.
+- A characterization test suite: 251 golden records, stored as exact hex floats,
+  covering `levy`, `neglog_levy`, `random` and `fit_levy` in all five
+  parametrizations. Every change since is measured against it.
+- CI on Linux × Python 3.9–3.13 plus macOS and Windows at both ends of the
+  range, pinned NumPy 1.x and 2.x legs, and separate legs for table generation,
+  golden reproducibility, lint and docstrings, doctests, the optional extras,
+  and the documentation build.
+- Project documentation and automation: `CONTRIBUTING.md`, `AGENTS.md`,
+  `CODE_OF_CONDUCT.md`, `CITATION.cff`, issue and pull-request templates,
+  Dependabot for pip and GitHub Actions, and `.pre-commit-config.yaml`.
+- A release workflow: a `vX.Y.Z` tag is refused unless it matches
+  `levy.__version__`, the built wheel is smoke-tested in a clean environment
+  before anything is published, publishing goes through PyPI Trusted Publishing
+  (OIDC, no stored secret), and the lookup tables plus their manifest are
+  attached to the GitHub release, for use through `$LEVY_DATA_DIR` or for
+  checking a local build against their checksums.
+- `levy-tables`, a console script that regenerates the lookup tables into a user
+  cache directory, with a `manifest.json` recording grid size, library versions
+  and per-array SHA256.
+- `levy/__main__.py`, so the documented `python -m levy build` works. It never
+  did: for a package, `-m` requires `__main__.py`.
+- NumPy-style docstrings throughout, enforced by `ruff` (pydocstyle, numpy
+  convention) and `numpydoc`, both gated in CI.
+- Documentation that builds from a checkout, published to GitHub Pages and
+  built on every pull request with `-W`, so a docstring that does not parse,
+  a page missing from the toctree or an unreachable intersphinx inventory
+  fails where it was introduced; the examples on the front and migration
+  pages are executed by the doctest builder. New narrative pages: **How it works** (the tan-space
+  grid, Catmull-Rom interpolation, the tail crossover and its known
+  discontinuity, why float32 suffices) and **Migrating from 1.x**. A committed
+  `.readthedocs.yaml` replaces build settings that existed only in the Read the
+  Docs web interface, where nobody but the account owner could see them.
+- An optional `pandas` extra. `pdf`, `cdf` and `logpdf` accept a `Series` or a
+  `DataFrame` and return one carrying the same index; `fit` accepts a `Series`
+  or a single-column `DataFrame`, and `FitResult.to_series()` reports the
+  parameters under that parametrization's own names. The core never sees a
+  pandas object, and an install without the extra never imports pandas --
+  support is detected by looking in `sys.modules`, so the fast path is one
+  dictionary lookup. `tests/test_no_pandas.py` runs the whole API in a
+  subprocess with pandas blocked at the import system.
+- An optional `torch` extra: `levy.backends`, with a torch implementation of
+  the interpolation written to be differentiable. Hand `pdf`, `cdf` or `logpdf`
+  a tensor -- or select the backend with `levy.set_backend('torch')` or
+  `levy.using('torch')` -- and gradients flow to `alpha`, `beta`, `mu` and
+  `sigma`, so a stable distribution can sit inside a larger torch model and be
+  fitted by gradient descent. `torch.autograd.gradcheck` passes for all four
+  parameters, for pdf, cdf and the negative log density, in float64. NumPy
+  remains the default, and an install without the extra never imports torch.
+
+### Changed
+
+- Packaging moved from `distutils` to PEP 621 `pyproject.toml`. The package
+  builds and installs on 3.9–3.13 again; it could not be built on 3.12+ at all.
+- The 800-line `__init__.py` was split by concern into `constants`,
+  `interpolation`, `tables`, `parametrization`, `distribution`, `fitting`,
+  `sampling` and `_build`, under a `src/` layout. Verified as a pure move:
+  99,312 values bit-identical across wheels built before and after.
+- The lookup tables are stored as `float32` and the two crossover-limit tables
+  are merged: **24.7 MB → 10.3 MB**. Measured cost, worst case 1.7e-07 relative
+  — three orders of magnitude below the interpolation error that already
+  dominates.
+- `print()` on error paths replaced with a module logger carrying a
+  `NullHandler`.
+
+### Deprecated
+
+Every name below still works and still returns exactly what it returned in 1.1.
+Accessing one through `levy.` emits a `DeprecationWarning` naming its
+replacement; the warning fires on *access*, not on `import levy`. They will
+be removed in a future major release.
+
+| 1.x | 2.0 | note |
+|---|---|---|
+| `levy.levy(x, a, b, cdf=False)` | `levy.api.pdf(x, alpha=a, beta=b)` | |
+| `levy.levy(x, a, b, cdf=True)` | `levy.api.cdf(x, alpha=a, beta=b)` | the `cdf=` flag is gone |
+| `levy.neglog_levy(...)` | `levy.api.logpdf(...)` | **opposite sign** — `logpdf` returns `log(pdf)` |
+| `levy.fit_levy(x)` | `levy.api.fit(x)` | returns a `FitResult`; rejects a misspelt parameter name |
+| `levy.random(..., shape=)` | `levy.api.rvs(..., size=)` | |
+| `levy.Parameters` | `levy.api.StableParams` | or `levy.parametrization.Parameters` for the fitting wrapper |
+| `levy.convert_to_par0` | `levy.api.StableParams.from_par` | validates the result |
+| `levy.convert_from_par0` | `levy.api.StableParams.to_par` | |
+| `levy.size` | `levy.constants.size` | |
+| `levy.par_bounds` | `levy.constants.par_bounds` | |
+| `levy.par_names` | `levy.constants.par_names` | |
+| `levy.default` | `levy.constants.default` | |
+| `levy.f_bounds` | `levy.constants.f_bounds` | |
+
+Each 1.x name also remains importable from its own module without a warning, if
+you want the old behaviour and no deprecation noise.
+
+### Fixed
+
+- `random(alpha=2.0, mu=..., sigma=...)` ignored `mu` and `sigma`. The Gaussian
+  branch returned before reaching the line that applied them, so
+  `random(2.0, 0.0, mu=100, sigma=5)` came back centred on zero.
+- `random(1.0, ±1.0)` produced **NaN for about 0.9% of draws**, and the
+  surviving samples were from the wrong distribution (Kolmogorov–Smirnov against
+  this package's own CDF: p = 3e-07 over 200k draws). The α = 1 nudge sat 1e-15
+  from the pole of the tangent, where rounding the argument becomes an ~11%
+  error in the result. Moved to 1e-8, in the middle of a plateau where every
+  radius from 1e-10 to 1e-6 behaves identically.
+- `alpha` below 0.5 produced a *negative* grid index — a perfectly valid Python
+  index — and silently returned values for `alpha ≈ 1.94`. `alpha` and `beta`
+  are now validated against the tabulated range.
+- Four cells of the shipped `cdf.npz` held `5.72e+307` instead of a probability:
+  quadrature failures baked into the table. `levy(0.0, 0.58, 0.74, cdf=True)`
+  returned `6.44e+307`. They are repaired at load time by interpolating along x,
+  logged once at `WARNING`.
+- `Parameters.x = [...]` raised `UnboundLocalError` instead of `TypeError`; the
+  setter dispatched on `__class__.__name__`.
+- `_reflect` was an unbounded `while 1:` loop. With the σ bounds `(1e-6, 1e10)`,
+  folding `1e30` needs ~1e20 iterations and never returns. Replaced by the
+  closed-form fold, identical output in the covered range.
+- `np.Inf` (removed in NumPy 2.0) made table generation fail on modern NumPy.
+- `levy.size` was hardcoded into the index arithmetic, so tables at any other
+  resolution raised `IndexError` — which defeated the point of `--size`.
+- The doctests: 4 of the 21 had been failing, and CI now runs them as a gate.
+- Fits could stop at a point that was not even stationary, returning parameters
+  pinned near a boundary. Reported upstream as
+  [#20](https://github.com/josemiotto/pylevy/issues/20) for `alpha=1.6`,
+  `sigma=0.005`. The search always started at `sigma = 1`, whatever the scale of
+  the data; 200 times too wide, and L-BFGS-B did not recover. Measured over 400
+  samples of 10,000 points, **2.25% of fits failed**, leaving up to 9,054
+  log-likelihood units unclaimed; the same sweep with the fix in place fails
+  **0 of 400**. A second starting point derived from the
+  data's median and interquartile range is now tried alongside the historical
+  one, and the better optimum wins. Because the old start is still a candidate,
+  the returned likelihood can only improve: over the ten golden fit cases,
+  five optima are unchanged, five improve (by up to 4.5e-08 in negative log
+  likelihood) and none get worse.
+- `fit_levy(x, par='B')` aborted with `ValueError: beta must be in [-1.0, 1.0],
+  got 1.0000000000000004` on 9 of 36 measured samples. Converting Zolotarev's
+  B into parametrization 0 evaluates two tangents whose rounding does not
+  cancel, so `beta_0` can land up to 44 ULP outside `[-1, 1]`. The domain check
+  added earlier in this release was exact, and turned that rounding into a lost
+  fit. Values within 1e-12 of an endpoint are now snapped to it; anything
+  further out is still rejected.
+
+### Known issues
+
+- The CDF is discontinuous at the tail crossover, stepping down by up to
+  2.6e-03. Fixing it means regenerating the crossover limits or reconciling the
+  interpolated and asymptotic branches; tracked separately.
+- Maximum likelihood for stable distributions is not convex, and L-BFGS-B can
+  still settle on a local optimum even from the improved starting point. The
+  two-start search above removes the scale-mismatch failures but not every
+  case: fitting in `'B'` on badly scaled data can still stop short of the
+  optimum reached in `'0'`. Fitting in more than one parametrization and
+  keeping the best likelihood remains a sound workaround; more starting points
+  would reduce it further, at proportional cost.
+
+## Versioning
+
+`levy.__version__` is the single source of truth, and tags are `vX.Y.Z` from
+here on. The existing tags `v0.5`, `1.1` and `1.2` are inconsistent with that
+and are left as they are — note that `1.2` was tagged while `__version__` still
+read `"1.1"`. Release automation asserts that a tag matches `__version__` before
+publishing.
+
+## [1.1] - 2020-08
+
+The last release of the 1.x line. See the git history; there was no changelog.

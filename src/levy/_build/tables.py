@@ -1,0 +1,420 @@
+"""Builders for the four lookup tables, with provenance and validation.
+
+Differences from the previous ``_make_dist_data_file`` / ``_make_limit_data_files``:
+
+* they take an output directory instead of writing into the installed package;
+* they can run across processes, because a full rebuild is ~25 CPU-minutes for
+  the densities and ~30 more for the crossover limits;
+* they validate what quadrature returns instead of storing it blindly, which is
+  how four unusable cells ended up in the shipped cdf.npz;
+* they write a manifest recording how the tables were made.
+"""
+
+import hashlib
+import json
+import logging
+import os
+import sys
+
+import numpy as np
+
+from levy._build.quadrature import calculate_levy, interpolated_levy
+from levy.constants import _lower, _upper, size
+from levy.distribution import _approximate
+
+logger = logging.getLogger(__name__)
+
+__all__ = [
+    "build_crossover_tables",
+    "build_density_tables",
+    "grid_axes",
+    "write_manifest",
+]
+
+#: A CDF outside this band, or a non-finite density, means quadrature failed.
+_CDF_BOUND = 1e-6
+
+
+def grid_axes(grid_size=None):
+    """Return the x, alpha and beta axes of the lookup grid.
+
+    Parameters
+    ----------
+    grid_size : tuple of int, optional
+        Shape to build. Defaults to the shipped ``levy.constants.size``.
+
+    Returns
+    -------
+    list of ndarray
+        The three axes, in order.
+
+    Notes
+    -----
+    x is stored in arctan space, so the grid covers the whole real line; the
+    tables hold values at ``tan(x_axis)``.
+    """
+    grid_size = tuple(grid_size or size)
+    return [
+        np.linspace(_lower[i], _upper[i], grid_size[i], endpoint=True)
+        for i in range(3)
+    ]
+
+
+def _density_column(args):
+    """Compute one (alpha, beta) column of the table.
+
+    Parameters
+    ----------
+    args : tuple
+        ``(alpha, beta, ts, cdf)``. Packed into a single argument, and defined
+        at module level, so that ``multiprocessing`` can pickle the call.
+
+    Returns
+    -------
+    ndarray
+        The column, one entry per point in ``ts``.
+    """
+    alpha, beta, ts, cdf = args
+    return np.array([calculate_levy(t, alpha, beta, cdf) for t in ts])
+
+
+def _validate_column(column, cdf, alpha, beta):
+    """Replace values quadrature could not compute, rather than storing them.
+
+    Parameters
+    ----------
+    column : ndarray
+        One freshly computed column.
+    cdf : bool
+        Whether `column` is from the cdf table, which additionally has to lie
+        in ``[0, 1]``.
+    alpha, beta : float
+        Reported in the warning; not used in the check.
+
+    Returns
+    -------
+    column : ndarray
+        The column, with unusable cells filled in along x -- unless fewer
+        than two usable points remain, in which case it is returned as it
+        came, unfilled, after an ERROR log line saying so.
+    n_bad : int
+        How many cells were replaced.
+    """
+    if cdf:
+        bad = ~np.isfinite(column) | (column < -_CDF_BOUND) | (column > 1.0 + _CDF_BOUND)
+    else:
+        bad = ~np.isfinite(column)
+    if not bad.any():
+        return column, 0
+    good = ~bad
+    kind = "cdf" if cdf else "pdf"
+    # Two good points are the minimum np.interp needs. Below that the column
+    # cannot be filled at all, and saying "filling by interpolation" would be
+    # a lie: the bad values are written as they are. Say which of the two
+    # actually happened -- in the count as well as the log, so the summary
+    # line cannot report a repair that did not take place.
+    if good.sum() < 2:
+        logger.error(
+            "quadrature failed for %d of %d points at alpha=%.4f beta=%.4f (%s) "
+            "with fewer than 2 usable points; the column is UNFILLED and the "
+            "table it is written into is not usable",
+            int(bad.sum()), column.size, alpha, beta, kind,
+        )
+        return column, 0
+    logger.warning(
+        "quadrature failed for %d of %d points at alpha=%.4f beta=%.4f (%s); "
+        "filling by interpolation along x",
+        int(bad.sum()), column.size, alpha, beta, kind,
+    )
+    column = column.copy()
+    column[bad] = np.interp(np.flatnonzero(bad), np.flatnonzero(good), column[good])
+    return column, int(bad.sum())
+
+
+def _map(function, items, jobs):
+    """Map `function` over `items`, in a process pool when `jobs` exceeds one.
+
+    Parameters
+    ----------
+    function : callable
+        Applied to each item. Must be picklable when `jobs` > 1.
+    items : sequence
+        The work list.
+    jobs : int
+        Worker processes. One or fewer runs in this process.
+
+    Yields
+    ------
+    object
+        Each result, in the order of `items`.
+    """
+    if jobs and jobs > 1:
+        from multiprocessing import Pool
+        with Pool(jobs) as pool:
+            yield from pool.imap(function, items)
+    else:
+        for item in items:
+            yield function(item)
+
+
+def _write_table(path, *arrays, **named):
+    """Write arrays to `path` as a compressed archive, atomically.
+
+    Parameters
+    ----------
+    path : str
+        Destination, ending in ``.npz``.
+    *arrays : ndarray
+        Positional arrays, stored as ``arr_0``, ``arr_1``, ...; a single table
+        is the usual case.
+    **named : ndarray
+        Arrays stored under their keyword, as the merged limits file does
+        with ``lower`` and ``upper``.
+
+    Notes
+    -----
+    The archive is written under a temporary name beside `path` and renamed
+    into place only once it is complete. ``data_dir()`` decides that the user
+    cache is usable by whether its files *exist*, so a build that died
+    mid-write -- Ctrl-C, a killed job, a full disk -- would otherwise leave a
+    truncated ``.npz`` that is picked up as part of a complete set and then
+    fails to load on every use until somebody deletes it by hand.
+    """
+    temporary = path + '.tmp'
+    try:
+        # A file object rather than the name: given a name that does not end
+        # in .npz, np.savez_compressed appends the extension itself.
+        with open(temporary, 'wb') as handle:
+            np.savez_compressed(handle, *arrays, **named)
+        os.replace(temporary, path)
+    finally:
+        if os.path.exists(temporary):
+            os.remove(temporary)
+
+
+def build_density_tables(out_dir, grid_size=None, jobs=1, what=("pdf", "cdf")):
+    """Generate pdf.npz and/or cdf.npz into `out_dir`.
+
+    Parameters
+    ----------
+    out_dir : str
+        Directory to write into. Created if missing.
+    grid_size : tuple of int, optional
+        Shape to build. Defaults to the shipped ``levy.constants.size``.
+    jobs : int, default 1
+        Worker processes. A full build is ~25 CPU-minutes.
+    what : sequence of {'pdf', 'cdf'}, default ('pdf', 'cdf')
+        Which densities to build.
+
+    Returns
+    -------
+    dict
+        ``{name: (array, number_of_repaired_cells)}``.
+    """
+    grid_size = tuple(grid_size or size)
+    x_axis, alphas, betas = grid_axes(grid_size)
+    ts = np.tan(x_axis)
+    os.makedirs(out_dir, exist_ok=True)
+
+    results = {}
+    for name in what:
+        cdf = name == "cdf"
+        logger.info("Generating %s.npz at %s ...", name, "x".join(map(str, grid_size)))
+        table = np.zeros(grid_size, 'float64')
+        columns = [(alpha, beta, ts, cdf) for alpha in alphas for beta in betas]
+        repaired = 0
+        for index, column in enumerate(_map(_density_column, columns, jobs)):
+            i, j = divmod(index, len(betas))
+            column, bad = _validate_column(column, cdf, alphas[i], betas[j])
+            repaired += bad
+            table[:, i, j] = column
+            if index % 500 == 0:
+                logger.info("  %d/%d columns", index, len(columns))
+        _write_table(os.path.join(out_dir, f'{name}.npz'), table)
+        logger.info("Wrote %s.npz (%d cell(s) repaired)", name, repaired)
+        results[name] = (table, repaired)
+    return results
+
+
+def _crossover_cell(args):
+    """Find where the power-law asymptote best matches the interpolated CDF.
+
+    Parameters
+    ----------
+    args : tuple
+        ``(alpha, beta, upper, table)``, packed so the call can be pickled.
+
+    Returns
+    -------
+    float
+        The crossover point, on the side selected by ``upper``.
+    """
+    alpha, beta, upper, table = args
+    n = 100000
+    x1, x2 = -50.0, 1e4 - 50.0
+    li1, li2 = 10, 500
+    if upper is False:
+        x1, x2 = -1e4 + 50, 50
+        li1, li2 = -500, -10
+    dx = (x2 - x1) / n
+    x = np.linspace(x1, x2, num=n + 1, endpoint=True)
+    y = 1.0 - interpolated_levy(x, alpha, beta, cdf=True, table=table)
+    z = 1.0 - _approximate(x, alpha, beta, cdf=True)
+    mask = (li1 < x) & (x < li2)
+    with np.errstate(divide='ignore', invalid='ignore'):
+        return li1 + dx * np.argmin((np.log(z[mask]) - np.log(y[mask])) ** 2.0)
+
+
+def build_crossover_tables(out_dir, grid_size=None, jobs=1, cdf_table=None):
+    """Generate limits.npz -- the crossover arrays ``lower`` and ``upper`` -- into `out_dir`.
+
+    Parameters
+    ----------
+    out_dir : str
+        Directory to write into. Created if missing.
+    grid_size : tuple of int, optional
+        Shape to build. Defaults to the shipped ``levy.constants.size``.
+    jobs : int, default 1
+        Worker processes. A full build is ~30 CPU-minutes.
+    cdf_table : ndarray, optional
+        CDF table to search against. When omitted, ``out_dir/cdf.npz`` is used
+        if it exists, else the table :func:`levy.tables.data_dir` currently
+        selects; whichever source, it must match `grid_size`.
+
+    Returns
+    -------
+    dict
+        ``{'lower_limit': ndarray, 'upper_limit': ndarray}``.
+
+    Raises
+    ------
+    ValueError
+        If the cdf table, from whichever source, is not `grid_size`: the
+        limits describe one particular table and must not be computed from
+        another.
+
+    Notes
+    -----
+    These say where :func:`levy.distribution.levy` should stop interpolating
+    and switch to the power-law tail, so they depend on the CDF table and must
+    be rebuilt after it.
+
+    The two arrays go into one merged file, the layout the package ships. Any
+    ``lower_limit.npz`` / ``upper_limit.npz`` from an older build are removed
+    at the same time: the loader prefers the merged file, so a stale one left
+    next to freshly built split files would silently win -- and the reverse
+    would leave stale split files behind to confuse ``levy-tables where``.
+    """
+    from levy.tables import _read_from_cache
+
+    grid_size = tuple(grid_size or size)
+    _, alphas, betas = grid_axes(grid_size)
+    os.makedirs(out_dir, exist_ok=True)
+    if cdf_table is None:
+        # The crossover is a property of a particular CDF table: it says where
+        # that table stops matching the tail approximation. Reading the
+        # installed one would describe a table other than the one being written
+        # here, which is wrong whenever the two differ -- a different grid size,
+        # or simply a rebuild. Prefer the CDF just produced in out_dir.
+        built = os.path.join(out_dir, 'cdf.npz')
+        if os.path.exists(built):
+            source = built
+            with np.load(built) as archive:
+                cdf_table = archive[archive.files[0]]
+        else:
+            from levy import data_dir
+            source = os.path.join(data_dir(), 'cdf.npz')
+            cdf_table = _read_from_cache('cdf')
+        logger.info("Using %s for the crossover limits", source)
+    else:
+        source = 'the cdf table from this run'
+    # Whatever the source, it has to be the table these limits will sit next
+    # to. Without this a cached 24x10x13 cdf could quietly produce limits for
+    # a --size 200,76,101 build, and the manifest would record the wrong size.
+    if tuple(cdf_table.shape) != grid_size:
+        raise ValueError(
+            "the cdf table ({}) is {}, not the requested {}; the crossover limits "
+            "describe one particular cdf table, so build the cdf at this size first "
+            "(add cdf to --what)".format(
+                source, 'x'.join(map(str, cdf_table.shape)), 'x'.join(map(str, grid_size))))
+
+    results = {}
+    for upper in (True, False):
+        name = 'upper' if upper else 'lower'
+        logger.info("Generating the %s crossover limits ...", name)
+        cells = [(alpha, beta, upper, cdf_table) for alpha in alphas for beta in betas]
+        limits = np.zeros(grid_size[1:], 'float64')
+        for index, value in enumerate(_map(_crossover_cell, cells, jobs)):
+            i, j = divmod(index, len(betas))
+            limits[i, j] = value
+            if index % 500 == 0:
+                logger.info("  %d/%d cells", index, len(cells))
+        results[f'{name}_limit'] = limits
+    _write_table(os.path.join(out_dir, 'limits.npz'),
+                 lower=results['lower_limit'], upper=results['upper_limit'])
+    for stale in ('lower_limit.npz', 'upper_limit.npz'):
+        path = os.path.join(out_dir, stale)
+        if os.path.exists(path):
+            os.remove(path)
+            logger.info("Removed %s, superseded by limits.npz", stale)
+    return results
+
+
+def write_manifest(out_dir, grid_size=None, extra=None):
+    """Record how the tables in `out_dir` were produced.
+
+    Parameters
+    ----------
+    out_dir : str
+        Directory holding the tables. ``manifest.json`` is written here.
+    grid_size : tuple of int, optional
+        Shape the tables were built at. Defaults to the shipped ``levy.constants.size``.
+    extra : dict, optional
+        Additional keys to merge into the manifest.
+
+    Returns
+    -------
+    dict
+        The manifest, as written.
+
+    Notes
+    -----
+    Without this there is no way to tell what resolution a table was built at,
+    which library versions produced it, or whether a file has been altered.
+    """
+    import scipy
+
+    grid_size = tuple(grid_size or size)
+    entries = {}
+    # Both layouts: the two separate crossover files, and the merged
+    # limits.npz that replaces them. Missing names are skipped below, so
+    # listing all of them keeps the manifest correct across the change.
+    for name in ('pdf', 'cdf', 'lower_limit', 'upper_limit', 'limits'):
+        path = os.path.join(out_dir, f'{name}.npz')
+        if not os.path.exists(path):
+            continue
+        with open(path, 'rb') as handle:
+            digest = hashlib.sha256(handle.read()).hexdigest()
+        with np.load(path) as archive:
+            key = archive.files[0]
+            entries[name] = {
+                'sha256': digest,
+                'bytes': os.path.getsize(path),
+                'shape': list(archive[key].shape),
+                'dtype': str(archive[key].dtype),
+            }
+
+    manifest = {
+        'grid_size': list(grid_size),
+        'lower': list(map(float, _lower)),
+        'upper': list(map(float, _upper)),
+        'numpy': np.__version__,
+        'scipy': scipy.__version__,
+        'python': sys.version.split()[0],
+        'tables': entries,
+    }
+    manifest.update(extra or {})
+    path = os.path.join(out_dir, 'manifest.json')
+    with open(path, 'w') as handle:
+        json.dump(manifest, handle, indent=2, sort_keys=True)
+    return manifest

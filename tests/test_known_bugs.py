@@ -3,7 +3,8 @@
 Every test here asserts the behaviour pylevy *should* have and is marked
 ``xfail(strict=True)``, so each one fails today and the suite turns red the
 moment a bug is fixed without its report being updated. That makes this file
-the checklist for the fix PRs that follow: fix the bug, delete the marker.
+the checklist for the fix PRs that follow. When a bug is fixed, its test
+moves to test_regressions.py and loses the marker.
 
 Each bug was reproduced against numpy 2.5.2 / scipy 1.18.1 on Python 3.12.
 Line references are to ``levy/__init__.py`` at the commit that added this file.
@@ -12,9 +13,6 @@ Line references are to ``levy/__init__.py`` at the commit that added this file.
 from __future__ import annotations
 
 import itertools
-import os
-import subprocess
-import sys
 
 import numpy as np
 import pytest
@@ -25,241 +23,55 @@ from _cases import ALPHAS, BETAS
 GRID = list(itertools.product(ALPHAS, BETAS))
 xfail = pytest.mark.xfail(strict=True)
 
-#: Resolve table paths from the package, not the working directory, so the
-#: suite runs the same from any cwd.
-PACKAGE_DIR = os.path.dirname(os.path.abspath(levy.__file__))
-
-
-def _table(name):
-    return np.load(os.path.join(PACKAGE_DIR, f"{name}.npz"))["arr_0"]
-
-
-# --------------------------------------------------------------------------
-# (a) random() drops mu and sigma at alpha == 2
-# --------------------------------------------------------------------------
-
-
-@xfail
-def test_random_at_alpha_2_respects_location_and_scale():
-    """levy/__init__.py:607-608 returns before mu and sigma are applied.
-
-        if alpha == 2:
-            return np.random.standard_normal(shape) * np.sqrt(2.0)
-
-    Every other alpha ends at ``return mu + sigma * k`` (line 632). Observed:
-    ``random(2.0, 0.0, mu=100.0, sigma=5.0)`` has mean 0.002, std 1.41.
-    """
-    np.random.seed(0)
-    sample = levy.random(2.0, 0.0, mu=100.0, sigma=5.0, shape=(100000,))
-    assert sample.mean() == pytest.approx(100.0, abs=0.1)
-    assert sample.std() == pytest.approx(5.0 * np.sqrt(2.0), rel=0.02)
-
-
-# --------------------------------------------------------------------------
-# (b) alpha below the supported floor indexes the table from the wrong end
-# --------------------------------------------------------------------------
-
-
-@xfail
-def test_alpha_below_supported_range_is_rejected():
-    """The module docstring (line 43) says alpha < 0.5 is unsupported, but
-    levy/__init__.py:469 computes ``int((alpha - 0.5) / 1.5 * 75)`` with no
-    lower bound, so alpha=0.4 gives index -4 -- a *valid* negative index that
-    silently reads the limits for alpha ~ 1.94. The ``except IndexError`` guard
-    at line 471 only catches positive overflow.
-
-    Observed: ``levy(x, 0.4, 0)`` returns the same values as ``levy(x, 0.5, 0)``
-    instead of raising.
-    """
-    with pytest.raises(ValueError):
-        levy.levy(np.array([1.0, 2.0]), 0.4, 0.0)
-
-
-@xfail
-def test_beta_outside_range_is_rejected():
-    """Same missing validation on the beta axis (line 470)."""
-    with pytest.raises(ValueError):
-        levy.levy(np.array([1.0, 2.0]), 1.5, 1.5)
-
-
-@xfail
-def test_alpha_below_range_does_not_alias_to_the_boundary():
-    """Distinct unsupported alphas must not silently produce identical output."""
-    assert not np.allclose(
-        levy.levy(np.array([1.0, 2.0]), 0.4, 0.0),
-        levy.levy(np.array([1.0, 2.0]), 0.5, 0.0),
-    )
-
-
 # --------------------------------------------------------------------------
 # (c) the tail-crossover cell is truncated instead of rounded
 # --------------------------------------------------------------------------
 
 
 @xfail
-def test_tail_crossover_uses_the_nearest_grid_cell():
-    """levy/__init__.py:469-470 truncate with ``int()`` where they should round.
+def test_tail_crossover_is_accurate_off_the_grid():
+    """The tail crossover is inaccurate for alpha/beta between grid points.
 
-    The consequence is observable, not cosmetic. At alpha=1.410182, beta=-0.5
-    the truncated cell has an upper crossover of 71.30 while the nearest cell
-    has 499.80. At x=285.55 the two branches disagree by 64%:
+    ``_grid_index`` snaps (alpha, beta) to one cell of the 76x101 limit tables
+    and uses that cell's crossover for every value in between. The consequence
+    is large: at alpha=1.410182, beta=-0.5 the selected cell has an upper
+    crossover of 71.30 while the neighbouring cell has 499.80, so at x=285.55
+    the two disagree by 64% -- one takes the power-law branch, the other the
+    interpolated branch.
 
-        levy() returns        1.919040e-07   (power-law tail branch)
-        interpolated value    5.382755e-07   (what the nearest cell gives)
+    Note that simply rounding to the nearest cell does **not** fix this. Over
+    300 sampled disagreement points, measured against ``_calculate_levy``:
 
-    ``sigma`` is unaffected; this is purely the choice of limit cell.
+        truncate  median 1.1164e-02   mean 3.5488e-01   p90 1.4560
+        round     median 1.4552e-02   mean 4.3251e-01   p90 1.4656
+        bilinear  median 1.0106e-02   mean 2.9459e-01   p90 0.9723
+
+    Rounding is *worse* on the median and better on only 43% of points. The
+    error is dominated by the seam itself: the interpolated branch and the
+    power-law branch do not meet at the crossover (see
+    ``test_cdf_is_monotone_across_the_tail_crossover``). A real fix means
+    interpolating the limits and reconciling the two branches so they agree
+    where they join, which is a numerical change worth its own PR and its own
+    evidence -- not a one-line int()/round() swap.
+
+    This test asserts the accuracy target, so it stays red until that lands.
     """
-    alpha, beta, x = 1.410182, -0.5, 285.55
-    probe = np.array([x])
+    rng = np.random.RandomState(0)
+    errors = []
+    for _ in range(40):
+        alpha = rng.uniform(0.55, 1.95)
+        beta = rng.uniform(-0.95, 0.95)
+        x = rng.uniform(15.0, 700.0) * rng.choice([-1.0, 1.0])
+        truth = levy._calculate_levy(float(x), alpha, beta, False)
+        if not np.isfinite(truth) or abs(truth) < 1e-300:
+            continue
+        got = levy.levy(np.array([float(x)]), alpha, beta)[0]
+        errors.append(abs(got - truth) / abs(truth))
 
-    # The nearest cell puts x inside the interpolated region.
-    upper_limit = _table("upper_limit")
-    k = (alpha - 0.5) / 1.5 * 75
-    beta_index = int(round((beta + 1.0) / 2.0 * 100))
-    assert int(k) != int(round(k)), "probe no longer straddles two cells"
-    assert x < upper_limit[int(round(k)), beta_index]
-
-    np.testing.assert_allclose(
-        levy.levy(probe, alpha, beta),
-        levy._int_levy(probe, alpha, beta),
-        rtol=1e-9,
+    assert np.median(errors) < 1e-4, (
+        "median relative error near the tail crossover is "
+        f"{np.median(errors):.3e}"
     )
-
-
-# --------------------------------------------------------------------------
-# (d) Parameters.x setter has no else branch
-# --------------------------------------------------------------------------
-
-
-@xfail
-def test_parameters_x_setter_rejects_unsupported_types():
-    """levy/__init__.py:283-286 dispatches on ``values.__class__.__name__`` and
-    has no ``else``, so ``vals`` is unbound for any other type:
-
-        UnboundLocalError: cannot access local variable 'vals'
-
-    A list is a perfectly reasonable thing to assign here; it should raise
-    TypeError, not UnboundLocalError.
-    """
-    parameters = levy.Parameters(par="0", alpha=None, beta=None, mu=None, sigma=None)
-    with pytest.raises(TypeError):
-        parameters.x = [1.5, 0.0, 0.0, 1.0]
-
-
-@xfail
-def test_parameters_x_setter_accepts_a_sequence():
-    """Assigning a list should work, not raise."""
-    parameters = levy.Parameters(par="0", alpha=None, beta=None, mu=None, sigma=None)
-    parameters.x = [1.5, 0.0, 0.0, 1.0]
-    np.testing.assert_allclose(parameters.get("0"), [1.5, 0.0, 0.0, 1.0])
-
-
-# --------------------------------------------------------------------------
-# (f) _reflect never terminates for far-out-of-bounds input
-# --------------------------------------------------------------------------
-
-
-@xfail
-def test_reflect_terminates_for_far_out_of_bounds_input():
-    """levy/__init__.py:91-99 is a ``while 1:`` that folds by one interval per
-    iteration. With the sigma bounds (1e-6, 1e10) and x=1e30 that is ~1e20
-    iterations. Confirmed still running after 5 seconds in a subprocess.
-
-    ``Parameters.x`` is a public setter, so this is reachable from user code.
-    """
-    completed = subprocess.run(
-        [sys.executable, "-c", "import levy; levy._reflect(1e30, 1e-6, 1e10)"],
-        timeout=10,
-        capture_output=True,
-    )
-    assert completed.returncode == 0
-
-
-# --------------------------------------------------------------------------
-# (l) the alpha ~ 1 skewed sampler is ill-conditioned by construction
-# --------------------------------------------------------------------------
-
-
-@xfail
-def test_alpha_1_skewed_sampler_is_well_conditioned():
-    """levy/__init__.py:610-615 sidesteps alpha == 1 by nudging:
-
-        radius = 1e-15
-        if np.absolute(alpha - 1.0) < radius:
-            alpha = 1.0 + radius
-
-    The comment claims this "works fine for alpha infinitesimally greater or
-    lower than 1.0". It does not. At alpha = 1 + 1e-15, ``tan(pi*alpha/2)``
-    evaluates to -5.83e+14 -- the function is sitting on its pole -- so
-    ``_phi(alpha, beta) = beta * tan(pi*alpha/2)`` is ~1.75e+14 for beta=0.3 and
-    **a single ULP of alpha changes it by 11.4%**. ``1.0 - alpha`` is also pure
-    cancellation (-1.11e-15).
-
-    Consequences: samples for alpha ~ 1 with beta != 0 are not reproducible
-    across libm builds (this was caught by CI disagreeing with a local run),
-    and their accuracy is governed by the last bit of a tangent near infinity.
-    beta == 0 is unaffected, because zero times the pole is zero.
-
-    The fix is the closed form: Chambers, Mallows & Stuck (1976) give a
-    separate alpha == 1 branch using log terms, which is what
-    ``_calculate_levy`` already does for the density (levy/__init__.py:305).
-    """
-    alpha = 1.0 + 1e-15
-    phi = levy._phi(alpha, 0.3)
-    phi_one_ulp_away = levy._phi(np.nextafter(alpha, 2.0), 0.3)
-    relative_swing = abs(phi_one_ulp_away - phi) / abs(phi)
-    assert relative_swing < 1e-6, (
-        f"one ULP in alpha moves _phi by {relative_swing:.1%}; "
-        f"tan(pi*alpha/2) = {np.tan(np.pi * alpha / 2):.3e}"
-    )
-
-
-# --------------------------------------------------------------------------
-# (g) np.Inf was removed in NumPy 2
-# --------------------------------------------------------------------------
-
-
-@pytest.mark.xfail(
-    not hasattr(np, "Inf"),
-    strict=True,
-    reason="np.Inf was removed in NumPy 2.0; levy/__init__.py:331-338 still uses it",
-)
-def test_table_generation_works_on_numpy_2():
-    """levy/__init__.py:331,332,337,338 use ``np.Inf``, removed in NumPy 2.0 in
-    favour of ``np.inf``. This kills ``python -m levy build`` -- the only way to
-    regenerate the shipped tables -- on any current NumPy.
-
-    Conditional on the NumPy version so that the NumPy-1.x CI leg, where this
-    code still works, does not report a strict-xfail failure.
-    """
-    assert isinstance(levy._calculate_levy(1.0, 1.5, 0.0), float)
-
-
-# --------------------------------------------------------------------------
-# (h) four corrupt cells in the shipped CDF table
-# --------------------------------------------------------------------------
-
-
-@xfail
-def test_cdf_table_has_no_corrupt_cells():
-    """``cdf.npz`` holds 5.72e+307 at x-index {99,100}, alpha-index 4
-    (alpha=0.58), beta-index {13,87} (beta=-+0.74) -- quadrature failures baked
-    into the table in 2017.
-
-    These four are also the only cells in either table that exceed the float32
-    maximum, so a naive ``.astype(np.float32)`` would turn a wrong number into
-    ``inf``. They must be repaired before the tables are down-converted.
-    """
-    cdf = _table("cdf")
-    assert np.isfinite(cdf).all()
-    assert cdf.max() <= 1.0 + 1e-6
-
-
-@xfail
-def test_cdf_is_usable_at_the_corrupt_cells():
-    """User-visible symptom of the corrupt cells."""
-    result = levy.levy(np.array([0.0]), 0.58, 0.74, cdf=True)
-    assert 0.0 <= result[0] <= 1.0
 
 
 # --------------------------------------------------------------------------
@@ -269,9 +81,18 @@ def test_cdf_is_usable_at_the_corrupt_cells():
 
 @xfail
 def test_pdf_is_never_negative():
-    """A density must not be negative. The shipped ``pdf.npz`` has 1845
-    negative entries (min -5.44e-08) and interpolation amplifies these to
-    -1.44e-05. ``neglog_levy`` hides it behind ``np.maximum(1e-100, ...)``.
+    """A density must not be negative; ``levy()`` returns down to -1.44e-05.
+
+    The obvious culprit -- 1845 negative entries in ``pdf.npz`` (min -5.44e-08)
+    -- is *not* the cause. Clamping every one of them to zero changes ``levy()``
+    output by at most 1.642e-18 and leaves the most negative returned value
+    exactly where it was, at -4.488e-08.
+
+    The real source is the interpolator: Catmull-Rom weights have negative
+    lobes, so a strictly non-negative grid can still interpolate below zero.
+    Fixing this means clamping at the output of ``levy()`` or using a
+    shape-preserving interpolant, not repairing the table. ``neglog_levy``
+    currently hides it behind ``np.maximum(1e-100, ...)``.
     """
     worst = min(
         levy.levy(np.linspace(-500.0, 500.0, 4001), alpha, beta).min()
@@ -306,35 +127,3 @@ def test_cdf_is_monotone_across_the_tail_crossover():
         for alpha, beta in GRID
     )
     assert worst >= -1e-9
-
-
-# --------------------------------------------------------------------------
-# Source hygiene
-# --------------------------------------------------------------------------
-
-
-@xfail
-def test_no_references_to_functions_that_do_not_exist():
-    """levy/__init__.py:464 and 606 carry commented-out calls to ``_limits()``
-    and ``change_par()``; neither exists anywhere in the package.
-    """
-    source = open(levy.__file__).read()
-    assert "_limits()" not in source
-    assert "change_par(" not in source
-
-
-@xfail
-def test_library_code_does_not_print_to_stdout(capsys):
-    """levy/__init__.py:476-478 prints diagnostics from inside ``levy()``
-    before re-raising. A library should log, not print.
-    """
-    source = open(levy.__file__).read()
-    body = source.split('if __name__ == "__main__":')[0]
-    build_functions = ("_make_dist_data_file", "_make_limit_data_files")
-    offending = [
-        line.strip()
-        for line in body.splitlines()
-        if line.strip().startswith("print(")
-    ]
-    assert not offending, f"print() in library code: {offending}"
-    assert build_functions  # documented: prints inside the build path are fine

@@ -16,10 +16,11 @@ import pytest
 TESTS_DIR = Path(__file__).resolve().parent
 REPO_ROOT = TESTS_DIR.parent
 
-# Import the package under test from the working tree, and let the test helper
-# modules (_cases, _compare, _encode) be imported by name.
+# Import the package under test from src/ (the layout keeps the working tree
+# from shadowing an installed copy), and let the test helper modules
+# (_cases, _compare, _encode) be imported by name.
 sys.path.insert(0, str(TESTS_DIR))
-sys.path.insert(0, str(REPO_ROOT))
+sys.path.insert(0, str(REPO_ROOT / "src"))
 
 sys.path.insert(0, str(TESTS_DIR / "golden"))
 
@@ -66,3 +67,29 @@ def seeded():
         np.random.seed(value)
 
     return _seed
+
+
+@pytest.fixture
+def packaged_tables(monkeypatch, tmp_path):
+    """Pin table lookup to the tables shipped inside the package.
+
+    Without this, a test that asserts something about "the tables" is really
+    asserting something about whatever the developer happens to have:
+    ``$LEVY_DATA_DIR`` may point anywhere, and a user cache holding a complete
+    set silently shadows the packaged ones -- possibly built at a different
+    resolution, possibly in the legacy split layout where the crossover limits
+    are two files rather than one.
+
+    ``_data_cache`` is cleared on both sides as well, so a table loaded by an
+    earlier test cannot satisfy a later one.
+    """
+    import levy
+
+    # data_dir() resolves user_cache_dir() from its own module globals, which is
+    # levy before the src/ split and levy.tables after it.
+    owner = sys.modules.get("levy.tables", levy)
+    monkeypatch.delenv("LEVY_DATA_DIR", raising=False)
+    monkeypatch.setattr(owner, "user_cache_dir", lambda: str(tmp_path / "no-cache"))
+    levy._data_cache.clear()
+    yield
+    levy._data_cache.clear()

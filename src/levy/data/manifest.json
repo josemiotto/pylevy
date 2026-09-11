@@ -1,0 +1,53 @@
+{
+  "dtype": "float32",
+  "grid_size": [
+    200,
+    76,
+    101
+  ],
+  "lower": [
+    -1.5692255304681018,
+    0.5,
+    -1.0
+  ],
+  "numpy": "2.5.2",
+  "python": "3.12.11",
+  "scipy": "1.18.1",
+  "source": "converted from the float64 tables",
+  "tables": {
+    "cdf": {
+      "bytes": 5161073,
+      "dtype": "float32",
+      "sha256": "2047b742528c4bc8a65bffabb94256026d79f38e6e70eb5785c2319fc7e2efbc",
+      "shape": [
+        200,
+        76,
+        101
+      ]
+    },
+    "limits": {
+      "bytes": 9305,
+      "dtype": "float32",
+      "sha256": "e96dcda993a4d2e1d70c16dbbe70ea685e22c6be6506ca368db559adf40c689c",
+      "shape": [
+        76,
+        101
+      ]
+    },
+    "pdf": {
+      "bytes": 5135130,
+      "dtype": "float32",
+      "sha256": "f8a9a99c0863daba964b9327940f0275b093958b396ba875f747276df025a43c",
+      "shape": [
+        200,
+        76,
+        101
+      ]
+    }
+  },
+  "upper": [
+    1.5692255304681018,
+    2.0,
+    1.0
+  ]
+}
