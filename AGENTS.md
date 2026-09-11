@@ -9,7 +9,7 @@ file is mostly here to save you the round trip.
 **Numbers do not move by accident.**
 
 `tests/golden/golden_v1.jsonl` pins the output of `levy`, `neglog_levy`,
-`random` and `fit_levy` at 251 points as exact hex floats. If your change moves
+`random` and `fit_levy` at 280 points as exact hex floats. If your change moves
 any of them, either it was not supposed to and you have a bug, or it was and you
 owe the reviewer evidence. For the density, distribution and sampling records
 that is a comparison against `levy._build.calculate_levy` showing the new

@@ -168,7 +168,7 @@ jobs:
           python -m pip install "numpy==2.5.2" "scipy==1.18.1"
           python -m pip install -e . --no-deps
 
-      # Regenerates all 251 cases from scratch and compares them against the
+      # Regenerates all 280 cases from scratch and compares them against the
       # committed file, so a reviewer can trust golden_v1.jsonl without reading
       # 250 lines of hex floats.
       #
