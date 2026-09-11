@@ -108,6 +108,14 @@ enable it, so the job failed on every push to `master`. Two steps, in order:
       the job, ready to paste -- and switch the artifact step to
       `actions/upload-pages-artifact`.
 
+## 5b. Private vulnerability reporting
+
+`SECURITY.md` routes reports to the maintainer's email until this is on:
+
+- [ ] Settings → Code security → **Private vulnerability reporting: Enable**.
+      Reports then go through the repository's Security Advisories page,
+      which `SECURITY.md` already links to.
+
 ## 6. Fix the repository "About"
 
 The sidebar currently has no description, no topics and no website, so the
