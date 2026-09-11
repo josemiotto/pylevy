@@ -45,8 +45,8 @@ number, a NaN, or an error -- it returns the same floats, bit for bit.
   did: for a package, `-m` requires `__main__.py`.
 - NumPy-style docstrings throughout, enforced by `ruff` (pydocstyle, numpy
   convention) and `numpydoc`, both gated in CI.
-- Documentation that builds from a checkout, published to GitHub Pages and
-  built on every pull request with `-W`, so a docstring that does not parse,
+- Documentation that builds from a checkout, built on every pull request
+  with `-W` and uploaded as an artifact, so a docstring that does not parse,
   a page missing from the toctree or an unreachable intersphinx inventory
   fails where it was introduced; the examples on the front and migration
   pages are executed by the doctest builder. New narrative pages: **How it works** (the tan-space

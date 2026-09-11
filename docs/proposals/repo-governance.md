@@ -98,9 +98,15 @@ See [pypi-name.md](pypi-name.md) for which project name this applies to.
 
 ## 5. GitHub Pages
 
-`.github/workflows/docs.yml` publishes there:
+`.github/workflows/docs.yml` builds the site on every pull request and
+uploads it as an artifact, but does not publish it: the publish job was
+removed on 2026-09-11 because Pages is not enabled and only an admin can
+enable it, so the job failed on every push to `master`. Two steps, in order:
 
 - [ ] Settings → Pages → Source: **GitHub Actions**
+- [ ] Put the `publish` job back in `docs.yml` -- the workflow header holds
+      the job, ready to paste -- and switch the artifact step to
+      `actions/upload-pages-artifact`.
 
 ## 6. Fix the repository "About"
 
