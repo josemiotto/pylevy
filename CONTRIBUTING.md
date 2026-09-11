@@ -53,7 +53,7 @@ pre-commit install
 
 ## The golden file
 
-`tests/golden/golden_v1.jsonl` holds 251 records pinning the numerical output of
+`tests/golden/golden_v1.jsonl` holds 280 records pinning the numerical output of
 `levy`, `neglog_levy`, `random` and `fit_levy`, stored as exact hex floats so
 that a change to them shows up as a readable diff rather than a binary blob.
 
