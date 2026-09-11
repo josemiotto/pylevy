@@ -9,6 +9,8 @@ __pycache__/
 # Distribution / packaging
 .Python
 env/
+.venv/
+venv/
 build/
 develop-eggs/
 dist/
@@ -37,6 +39,9 @@ pip-delete-this-directory.txt
 # Unit test / coverage reports
 htmlcov/
 .tox/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
 .coverage
 .coverage.*
 .cache
@@ -62,5 +67,4 @@ target/
 .ipynb_checkpoints
 
 # pycharm
-./idea
-.idea/*
+.idea/
