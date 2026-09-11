@@ -289,6 +289,7 @@ Contributions are welcome. [CONTRIBUTING.md](https://github.com/josemiotto/pylev
 | [CHANGELOG.md](https://github.com/josemiotto/pylevy/blob/master/CHANGELOG.md) | What 2.0 changed, fixed and added |
 | [AGENTS.md](https://github.com/josemiotto/pylevy/blob/master/AGENTS.md) | Coding conventions, for humans and coding agents alike |
 | [CODE_OF_CONDUCT.md](https://github.com/josemiotto/pylevy/blob/master/CODE_OF_CONDUCT.md) | Community standards |
+| [SECURITY.md](https://github.com/josemiotto/pylevy/blob/master/SECURITY.md) | Supported versions, how to report a vulnerability, and what the package does with its inputs |
 | [docs/source/how_it_works.md](https://github.com/josemiotto/pylevy/blob/master/docs/source/how_it_works.md) | The grid, the interpolation, the tails, and the measured accuracy |
 | [docs/source/migration.md](https://github.com/josemiotto/pylevy/blob/master/docs/source/migration.md) | Moving from 1.x |
 | [docs/proposals/](https://github.com/josemiotto/pylevy/tree/master/docs/proposals) | Repository governance, the PyPI name, and the state of every upstream issue |
