@@ -9,7 +9,7 @@ shown to agree with NumPy rather than assumed to. It is checked here at
 Gradients: ``torch.autograd.gradcheck`` compares the analytic gradient against
 finite differences in float64, for all four parameters, for pdf, cdf and the
 negative log density. Passing that is what makes "differentiable" a fact rather
-than a claim -- and the optimisation test below shows it is *useful*: gradient
+than a claim -- and the optimization test below shows it is *useful*: gradient
 descent lands on the same optimum this package's own L-BFGS-B finds.
 
 `tests/test_no_torch.py` covers the other half: an install without torch never
@@ -78,7 +78,7 @@ def test_agreement_is_far_tighter_than_the_contract(alpha, beta, mu, sigma):
     #
     # The bound is 1e-10 rather than the ~1e-16 a single operation would give:
     # the interpolation is a 64-term weighted sum, and torch and NumPy do not
-    # order or vectorise it identically. Measured worst case is 2.6e-16 on
+    # order or vectorize it identically. Measured worst case is 2.6e-16 on
     # macOS/x86 and 1.4e-12 on the Linux CI runner -- a libm difference, not a
     # divergence. 1e-10 keeps two orders of magnitude of headroom over the
     # worse of those while staying four below the contract.

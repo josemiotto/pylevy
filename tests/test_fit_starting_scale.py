@@ -157,9 +157,9 @@ def test_the_scaled_start_round_trips_in_every_parametrization(par, pinned):
         assert start[0] == 1.7 and start[1] == 0.6
 
     back = Parameters.convert(start, par, "0")
-    centre = np.median(data)
+    center = np.median(data)
     spread = (np.percentile(data, 75) - np.percentile(data, 25)) / 2.0
-    np.testing.assert_allclose(back[2:], [centre, spread], rtol=1e-9)
+    np.testing.assert_allclose(back[2:], [center, spread], rtol=1e-9)
 
 
 def test_unit_scale_data_starts_essentially_where_it_used_to():

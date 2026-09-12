@@ -1,6 +1,6 @@
 # 📈 pylevy
 
-Lévy alpha-stable distributions for Python: density, distribution function, sampling, and maximum-likelihood fitting. Stable distributions are the heavy-tailed generalisation of the normal, and computing their density directly means a slow numerical integration for every point. pylevy interpolates a precomputed table instead, which is what makes fitting them by maximum likelihood fast enough to be practical.
+Lévy alpha-stable distributions for Python: density, distribution function, sampling, and maximum-likelihood fitting. Stable distributions are the heavy-tailed generalization of the normal, and computing their density directly means a slow numerical integration for every point. pylevy interpolates a precomputed table instead, which is what makes fitting them by maximum likelihood fast enough to be practical.
 
 [![CI](https://github.com/josemiotto/pylevy/actions/workflows/ci.yml/badge.svg)](https://github.com/josemiotto/pylevy/actions/workflows/ci.yml)
 [![Docs](https://github.com/josemiotto/pylevy/actions/workflows/docs.yml/badge.svg)](https://github.com/josemiotto/pylevy/actions/workflows/docs.yml)
@@ -35,7 +35,7 @@ pip install .
 Optional extras:
 
 ```bash
-pip install ".[pandas]"          # labelled input and output
+pip install ".[pandas]"          # labeled input and output
 pip install ".[torch]"           # differentiable backend
 pip install ".[pandas,torch]"    # both
 ```
@@ -143,7 +143,7 @@ api.fit(returns).to_series()
 
 ### 🔥 torch
 
-Hand the functions tensors and the result carries gradients, so the log likelihood can be minimised by gradient descent inside a larger model:
+Hand the functions tensors and the result carries gradients, so the log likelihood can be minimized by gradient descent inside a larger model:
 
 ```python
 import torch

@@ -135,8 +135,8 @@ def _data_scaled_start(x, par, fixed):
 
     lower, upper = np.percentile(finite, [25, 75])
     spread = float(upper - lower) / _IQR_OF_STANDARD_STABLE
-    centre = float(np.median(finite))
-    if not np.isfinite(spread) or spread <= 0 or not np.isfinite(centre):
+    center = float(np.median(finite))
+    if not np.isfinite(spread) or spread <= 0 or not np.isfinite(center):
         return None
 
     # Built in parametrization 0 -- the only one in which the third and fourth
@@ -162,7 +162,7 @@ def _data_scaled_start(x, par, fixed):
             # parametrization's own conversion; elsewhere this is the identity.
             beta_0 = Parameters.convert(
                 np.array([alpha_0, fixed[names[1]], 0.0, 1.0]), par, '0')[1]
-        start = Parameters.convert(np.array([alpha_0, beta_0, centre, spread]), '0', par)
+        start = Parameters.convert(np.array([alpha_0, beta_0, center, spread]), '0', par)
     if not np.all(np.isfinite(start)):
         return None
 
@@ -213,11 +213,11 @@ def fit_levy(x, par='0', **kwargs):
 
     See Also
     --------
-    levy.distribution.neglog_levy : The objective being minimised.
+    levy.distribution.neglog_levy : The objective being minimized.
 
     Notes
     -----
-    The objective is minimised with L-BFGS-B over the free parameters only, box
+    The objective is minimized with L-BFGS-B over the free parameters only, box
     constrained by ``par_bounds``. Since the likelihood is evaluated by
     interpolating a lookup table, the optimum's last digits are not portable
     across platforms; compare fitted parameters with a tolerance, never for
@@ -250,10 +250,10 @@ def fit_levy(x, par='0', **kwargs):
     >>> bool(np.allclose(symmetric.get('0'), [1.529, 0.0, 0.028, 0.988], atol=5e-3))
     True
 
-    Fit a symmetric distribution centred on zero:
+    Fit a symmetric distribution centered on zero:
 
-    >>> centred, _ = fit_levy(x, beta=0.0, mu=0.0)
-    >>> bool(np.allclose(centred.get('0'), [1.531, 0.0, 0.0, 0.990], atol=5e-3))
+    >>> centered, _ = fit_levy(x, beta=0.0, mu=0.0)
+    >>> bool(np.allclose(centered.get('0'), [1.531, 0.0, 0.0, 0.990], atol=5e-3))
     True
 
     Fit a Cauchy distribution:
@@ -279,7 +279,7 @@ def fit_levy(x, par='0', **kwargs):
         Returns
         -------
         float
-            The objective L-BFGS-B minimises.
+            The objective L-BFGS-B minimizes.
         """
         temp.x = param
         alpha, beta, mu, sigma = temp.get('0')

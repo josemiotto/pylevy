@@ -39,10 +39,10 @@ def tiny_grid():
 
     Returns ``(grid, lower, upper, f)`` where ``f(x, y, z)`` is the closed-form
     function the grid samples. Shape is (20, 8, 11) -- three orders of magnitude
-    smaller than the shipped (200, 76, 101) tables, so interpolation behaviour
+    smaller than the shipped (200, 76, 101) tables, so interpolation behavior
     can be tested without loading 12 MB from disk.
 
-    ``f`` is quadratic on purpose. Catmull-Rom takes its tangents from centred
+    ``f`` is quadratic on purpose. Catmull-Rom takes its tangents from centered
     differences, which are exact for a quadratic but not for a cubic, so it
     reproduces quadratics to machine precision (measured 1.3e-15) while a cubic
     is off by ~8.8e-04. Only the quadratic is a true oracle.

@@ -110,13 +110,13 @@ be removed in a future major release.
 | `levy.f_bounds` | `levy.constants.f_bounds` | |
 
 Each 1.x name also remains importable from its own module without a warning, if
-you want the old behaviour and no deprecation noise.
+you want the old behavior and no deprecation noise.
 
 ### Fixed
 
 - `random(alpha=2.0, mu=..., sigma=...)` ignored `mu` and `sigma`. The Gaussian
   branch returned before reaching the line that applied them, so
-  `random(2.0, 0.0, mu=100, sigma=5)` came back centred on zero.
+  `random(2.0, 0.0, mu=100, sigma=5)` came back centered on zero.
 - `random(1.0, ±1.0)` produced **NaN for about 0.9% of draws**, and the
   surviving samples were from the wrong distribution (Kolmogorov–Smirnov against
   this package's own CDF: p = 3e-07 over 200k draws). The α = 1 nudge sat 1e-15

@@ -11,7 +11,7 @@ What changed is that each 1.x name now emits a `DeprecationWarning` when reached
 through `levy.`, naming its replacement. They will be removed in a future major
 release.
 
-If you want to keep the 1.x behaviour and silence the warning, import from the
+If you want to keep the 1.x behavior and silence the warning, import from the
 module the function actually lives in — `levy.distribution.levy` rather than
 `levy.levy`. No warning, same function object.
 
@@ -75,7 +75,7 @@ levy.api.pdf(x, alpha=0.4, beta=0.0)   # 2.0: ValidationError, naming alpha
 ```
 
 Along the same lines, `api.fit` rejects a keyword that is not a parameter name.
-`fit_levy` took `**kwargs` and ignored anything it did not recognise, so
+`fit_levy` took `**kwargs` and ignored anything it did not recognize, so
 `fit_levy(x, beta_=0.0)` fitted `beta` freely and said nothing.
 
 ## Fits give you an object, not a tuple

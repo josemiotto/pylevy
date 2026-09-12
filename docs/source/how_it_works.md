@@ -46,7 +46,7 @@ Evaluation is a Catmull-Rom cubic interpolation in all three dimensions at once:
 a weighted sum over the 4×4×4 = 64 grid nodes surrounding the query point, with
 weights that are cubic polynomials in the fractional offsets.
 
-Catmull-Rom takes its tangents from centred differences. That makes it exact for
+Catmull-Rom takes its tangents from centered differences. That makes it exact for
 quadratics — measured at 1.3e-15 on a quadratic test grid — and it is C¹ across
 cell boundaries, which matters because the fit differentiates the likelihood
 numerically.
@@ -127,7 +127,7 @@ a known open defect, listed in the changelog.
 transform, which turns two uniforms directly into a stable variate — no table
 involved, so sampling accuracy does not depend on the grid at all. The one
 approximation is the `1e-8` nudge of `alpha` near 1 described next; away from
-that neighbourhood the transform is exact up to floating-point rounding.
+that neighborhood the transform is exact up to floating-point rounding.
 
 The transform divides by `tan(pi*alpha/2)`, which has a pole at `alpha = 1`, so
 `alpha` within 1e-8 of 1 is nudged aside. The nudge used to be 1e-15, close

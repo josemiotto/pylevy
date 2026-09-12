@@ -33,7 +33,7 @@ GRID = list(itertools.product(ALPHAS, BETAS))
 def test_location_scale_identity_is_exact(alpha, beta, mu, sigma):
     """pdf(x; mu, sigma) == pdf((x-mu)/sigma; 0, 1) / sigma, bit for bit.
 
-    ``levy()`` implements location/scale by standardising ``x`` up front, so
+    ``levy()`` implements location/scale by standardizing ``x`` up front, so
     this identity is exact rather than approximate. Any future rewrite of that
     code path has to preserve it.
     """
@@ -209,7 +209,7 @@ def test_interpolator_reproduces_a_quadratic(tiny_grid):
     This is a real oracle, not a smoke test, and it runs against a (20, 8, 11)
     synthetic array -- the shipped 12 MB tables are never touched.
 
-    Quadratic, not cubic: Catmull-Rom takes its tangents from centred
+    Quadratic, not cubic: Catmull-Rom takes its tangents from centered
     differences, which are exact for a quadratic but carry an O(h^2 f''')
     error for a cubic. Measured here: 1.3e-15 for a quadratic against 8.8e-04
     for a cubic.

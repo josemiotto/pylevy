@@ -201,7 +201,7 @@ def approximate(x, alpha, beta, cdf=False):
     Parameters
     ----------
     x : Tensor
-        Standardised values outside the crossover limits.
+        Standardized values outside the crossover limits.
     alpha : Tensor
         Index of stability.
     beta : Tensor

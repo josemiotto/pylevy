@@ -450,7 +450,7 @@ def _dispatch(
     """
     module = backends.get(backend, x, alpha, beta, mu, sigma)
     if module.name != 'numpy' and labels_of(x):
-        # A labelled result would have to be a Series or DataFrame, and that
+        # A labeled result would have to be a Series or DataFrame, and that
         # cannot carry a tensor's gradient; converting silently would drop
         # the labels the caller passed in on purpose. Say so instead.
         raise ValueError(
@@ -488,8 +488,8 @@ def _from_backend(value: Any) -> ScalarOrArray:
     Returns
     -------
     float or ndarray
-        Declared, not checked. The same localised inaccuracy as
-        :func:`_labelled`, and for the same reason: torch is an optional extra
+        Declared, not checked. The same localized inaccuracy as
+        :func:`_labeled`, and for the same reason: torch is an optional extra
         and must not become a type-checking dependency. Every call a type
         checker will normally see uses the NumPy backend and really does return
         float or ndarray.
@@ -497,7 +497,7 @@ def _from_backend(value: Any) -> ScalarOrArray:
     return cast(ScalarOrArray, value)
 
 
-def _labelled(values: Any, labels: dict[str, Any]) -> ScalarOrArray:
+def _labeled(values: Any, labels: dict[str, Any]) -> ScalarOrArray:
     """Put pandas labels back on a result, and declare the type of the outcome.
 
     Parameters
@@ -510,7 +510,7 @@ def _labelled(values: Any, labels: dict[str, Any]) -> ScalarOrArray:
     Returns
     -------
     Series or DataFrame
-        Declared as ``ScalarOrArray``, which is a deliberate and localised
+        Declared as ``ScalarOrArray``, which is a deliberate and localized
         inaccuracy: what actually comes back is a pandas object. Expressing
         that in the annotation would make pandas a type-checking dependency of
         an *optional* extra. Every non-pandas call -- which is every call a
@@ -607,7 +607,7 @@ def pdf(
         argument is a ``torch.Tensor``, and NumPy otherwise. Tensor parameters
         carry gradients through the result. pandas input is NumPy-only: its
         labels cannot be put back on a tensor, so it is refused rather than
-        silently unlabelled.
+        silently unlabeled.
 
     Returns
     -------
@@ -638,7 +638,7 @@ def pdf(
     labels = labels_of(x)
     values = _levy(np.asarray(x, dtype='d') if labels else x,
                    p.alpha, p.beta, p.mu, p.sigma, cdf=False)
-    return _labelled(values, labels) if labels else _narrow(values)
+    return _labeled(values, labels) if labels else _narrow(values)
 
 
 def cdf(
@@ -673,7 +673,7 @@ def cdf(
         argument is a ``torch.Tensor``, and NumPy otherwise. Tensor parameters
         carry gradients through the result. pandas input is NumPy-only: its
         labels cannot be put back on a tensor, so it is refused rather than
-        silently unlabelled.
+        silently unlabeled.
 
     Returns
     -------
@@ -704,7 +704,7 @@ def cdf(
     labels = labels_of(x)
     values = _levy(np.asarray(x, dtype='d') if labels else x,
                    p.alpha, p.beta, p.mu, p.sigma, cdf=True)
-    return _labelled(values, labels) if labels else _narrow(values)
+    return _labeled(values, labels) if labels else _narrow(values)
 
 
 def logpdf(
@@ -739,7 +739,7 @@ def logpdf(
         argument is a ``torch.Tensor``, and NumPy otherwise. Tensor parameters
         carry gradients through the result. pandas input is NumPy-only: its
         labels cannot be put back on a tensor, so it is refused rather than
-        silently unlabelled.
+        silently unlabeled.
 
     Returns
     -------
@@ -775,7 +775,7 @@ def logpdf(
     values = np.log(np.maximum(1e-100, _levy(
         np.asarray(x, dtype='d') if labels else x,
         p.alpha, p.beta, p.mu, p.sigma, cdf=False)))
-    return _labelled(values, labels) if labels else _narrow(values)
+    return _labeled(values, labels) if labels else _narrow(values)
 
 
 def rvs(
@@ -827,7 +827,7 @@ def rvs(
     would mean reimplementing the sampler and changing every seeded number.
 
     For the same reason a seeded call saves the global stream's state, seeds,
-    draws and restores it. That sequence is not synchronised: two threads
+    draws and restores it. That sequence is not synchronized: two threads
     making seeded calls at once can restore each other's stale state, and
     the guarantee that the surrounding stream is left where it was then
     fails. Seeded calls are single-threaded by contract; unseeded ones are
@@ -938,7 +938,7 @@ def fit(
     # a location and is unbounded, the fourth is a scale in every
     # parametrization.
     names = par_names[par]
-    # Normalised once, and the normalised values are what the fitter gets:
+    # Normalized once, and the normalized values are what the fitter gets:
     # checking float(value) and then passing `value` through would let a
     # string or a 0-d array that happens to convert reach the optimizer as
     # it came.

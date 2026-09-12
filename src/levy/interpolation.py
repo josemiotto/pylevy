@@ -107,7 +107,7 @@ def _interpolate(points, grid, lower, upper):
 
     Notes
     -----
-    Catmull-Rom takes its tangents from centred differences, which are exact
+    Catmull-Rom takes its tangents from centered differences, which are exact
     for a quadratic but not for a cubic; it therefore reproduces quadratics to
     machine precision. Indices are clamped at the edges, so points outside
     ``[lower, upper]`` are extrapolated from the boundary cell rather than

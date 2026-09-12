@@ -20,7 +20,7 @@ Install
 
    pip install pylevy
 
-Optional extras: ``pylevy[pandas]`` for labelled input and output,
+Optional extras: ``pylevy[pandas]`` for labeled input and output,
 ``pylevy[torch]`` for a differentiable backend. Neither is imported unless it
 is installed and used.
 

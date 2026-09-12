@@ -103,7 +103,7 @@ def random(alpha, beta, mu=0.0, sigma=1.0, shape=()):
     if alpha == 2:
         # mu and sigma have to be applied here too. This branch used to return
         # before reaching the `return mu + sigma * k` at the end of the
-        # function, so random(2.0, 0.0, mu=100, sigma=5) came back centred on
+        # function, so random(2.0, 0.0, mu=100, sigma=5) came back centered on
         # zero with unit-ish scale.
         return mu + sigma * np.random.standard_normal(shape) * np.sqrt(2.0)
 
@@ -123,17 +123,17 @@ def random(alpha, beta, mu=0.0, sigma=1.0, shape=()):
     pi = np.pi
 
     one_minus_alpha = 1.0 - alpha                    # was a
-    centred_uniform = uniform_angle - 0.5            # was b, in [-1/2, 1/2)
-    angle = one_minus_alpha * centred_uniform * pi   # was c
+    centered_uniform = uniform_angle - 0.5            # was b, in [-1/2, 1/2)
+    angle = one_minus_alpha * centered_uniform * pi   # was c
     skew_term = _phi(alpha, beta)                    # was e; beta*tan(pi*alpha/2)
 
     # was f
     scale_factor = (
         -(np.cos(angle) + skew_term * np.sin(angle))
-        / (np.log(uniform_for_exponential) * np.cos(centred_uniform * pi))
+        / (np.log(uniform_for_exponential) * np.cos(centered_uniform * pi))
     ) ** (one_minus_alpha / alpha)
 
-    tan_half_turn = np.tan(pi * centred_uniform / 2.0)   # was g
+    tan_half_turn = np.tan(pi * centered_uniform / 2.0)   # was g
     tan_half_angle = np.tan(angle / 2.0)                 # was h
     one_minus_tan_squared = 1.0 - tan_half_turn ** 2.0   # was i
 

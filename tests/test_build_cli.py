@@ -34,7 +34,7 @@ def test_data_dir_defaults_to_the_packaged_tables(monkeypatch, tmp_path):
     assert levy.data_dir() == levy.PACKAGED_DATA
 
 
-def test_data_dir_honours_the_environment_override(monkeypatch):
+def test_data_dir_honors_the_environment_override(monkeypatch):
     monkeypatch.setenv("LEVY_DATA_DIR", "/somewhere/else")
     assert levy.data_dir() == "/somewhere/else"
 

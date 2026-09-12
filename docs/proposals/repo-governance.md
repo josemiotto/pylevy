@@ -40,7 +40,7 @@ the fact.
 The `golden file is reproducible` check is the important one. It regenerates all
 251 golden records from scratch and compares them against the committed file, so
 a pull request cannot quietly edit the thing that pins the package's numerical
-behaviour.
+behavior.
 
 ## 2. `CODEOWNERS`
 
@@ -149,4 +149,4 @@ repository is effectively unfindable by search. Suggested:
 The defaults are fine except that a numerical package wants one more:
 
 - [ ] `numerics` — for anything where the disagreement is about a value rather
-      than about behaviour. These need a different kind of review.
+      than about behavior. These need a different kind of review.
