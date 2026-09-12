@@ -1,6 +1,6 @@
 """Executable bug reports.
 
-Every test here asserts the behaviour pylevy *should* have and is marked
+Every test here asserts the behavior pylevy *should* have and is marked
 ``xfail(strict=True)``, so each one fails today and the suite turns red the
 moment a bug is fixed without its report being updated. That makes this file
 the checklist for the fix PRs that follow. When a bug is fixed, its test
@@ -35,7 +35,7 @@ def test_tail_crossover_is_accurate_off_the_grid():
     ``_grid_index`` snaps (alpha, beta) to one cell of the 76x101 limit tables
     and uses that cell's crossover for every value in between. The consequence
     is large: at alpha=1.410182, beta=-0.5 the selected cell has an upper
-    crossover of 71.30 while the neighbouring cell has 499.80, so at x=285.55
+    crossover of 71.30 while the neighboring cell has 499.80, so at x=285.55
     the two disagree by 64% -- one takes the power-law branch, the other the
     interpolated branch.
 

@@ -53,7 +53,7 @@ SAME_OPTIMUM_NLL = 1e-3
 def test_fitting_near_the_skewness_boundary_completes(par, alpha, beta):
     # Before the tolerance, par='B' raised
     #   ValueError: beta must be in [-1.0, 1.0], got 1.0000000000000004
-    # partway through the optimisation, losing the whole fit.
+    # partway through the optimization, losing the whole fit.
     np.random.seed(7)
     sample = random(alpha, beta, 0.0, 1.0, shape=(600,))
     parameters, nll = fit_levy(sample, par=par)

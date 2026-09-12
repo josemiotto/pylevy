@@ -234,7 +234,7 @@ def __getattr__(name):
             f'levy.{name} is deprecated since 2.0 and will be removed in a future '
             f'major release; '
             f'use {replacement}. It still lives at {module_name}.{attribute} '
-            f'if you want the 1.x behaviour without the warning.',
+            f'if you want the 1.x behavior without the warning.',
             DeprecationWarning,
             stacklevel=2,
         )

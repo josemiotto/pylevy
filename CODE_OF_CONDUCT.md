@@ -10,17 +10,17 @@ race, religion, or sexual identity and orientation.
 
 ## Our standards
 
-Examples of behaviour that contributes to a positive environment:
+Examples of behavior that contributes to a positive environment:
 
 - Demonstrating empathy and kindness toward other people
 - Being respectful of differing opinions, viewpoints, and experiences
 - Giving and gracefully accepting constructive feedback
-- Accepting responsibility and apologising to those affected by our mistakes
+- Accepting responsibility and apologizing to those affected by our mistakes
 - Focusing on what is best for the community
 
-Examples of unacceptable behaviour:
+Examples of unacceptable behavior:
 
-- Sexualised language or imagery, and sexual attention or advances of any kind
+- Sexualized language or imagery, and sexual attention or advances of any kind
 - Trolling, insulting or derogatory comments, and personal or political attacks
 - Public or private harassment
 - Publishing others' private information without their explicit permission
@@ -29,7 +29,7 @@ Examples of unacceptable behaviour:
 
 ## Enforcement
 
-Instances of abusive, harassing, or otherwise unacceptable behaviour may be
+Instances of abusive, harassing, or otherwise unacceptable behavior may be
 reported privately to the maintainer, José María Miotto, at
 <josemiotto@gmail.com> -- the address listed under `maintainers` in
 `pyproject.toml` -- or through GitHub's

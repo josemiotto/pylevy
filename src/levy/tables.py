@@ -166,9 +166,9 @@ def _repair_table(key, table):
     Notes
     -----
     CDF cells outside ``[0, 1]`` (or non-finite) are replaced by linear
-    interpolation along x, which is well justified here: the neighbours of the
+    interpolation along x, which is well justified here: the neighbors of the
     known-bad cells are smooth and about 0.0128 apart. A bad cell at either
-    end of the x range has a usable neighbour on one side only and is copied
+    end of the x range has a usable neighbor on one side only and is copied
     from it instead. A repair is logged once at ``WARNING``.
     """
     if key != 'cdf':
@@ -193,7 +193,7 @@ def _repair_table(key, table):
         left, right = low - 1, high + 1
         if left < 0 and right > x_size - 1:
             # Every cell in this column is unusable, so there is no good
-            # neighbour to interpolate or copy from -- and the copy below
+            # neighbor to interpolate or copy from -- and the copy below
             # would index one past the end. Nothing can be recovered here.
             clipped += 1
             # Once per column: an unusable column is unusable in every one
@@ -211,7 +211,7 @@ def _repair_table(key, table):
             # given a value explicitly: -inf becomes 0, +inf and NaN become
             # 1. No number is *right* for a column like this -- the point is
             # that the table comes back finite, as promised, so the
-            # interpolator cannot spread NaN into every neighbour it touches.
+            # interpolator cannot spread NaN into every neighbor it touches.
             value = table[x_index, alpha_index, beta_index]
             if not np.isfinite(value):
                 value = 0.0 if value < 0.0 else 1.0
@@ -238,18 +238,18 @@ def _repair_table(key, table):
             interpolated,
         )
     if copied:
-        # Not interpolated either: one usable neighbour is not enough to
-        # interpolate between, so the cell took that neighbour's value.
+        # Not interpolated either: one usable neighbor is not enough to
+        # interpolate between, so the cell took that neighbor's value.
         logger.warning(
             'A further %d cell(s) at an end of the x range had a usable '
-            'neighbour on one side only and were copied from it.',
+            'neighbor on one side only and were copied from it.',
             copied,
         )
     if clipped:
-        # Not interpolated: these had no usable neighbour to interpolate
+        # Not interpolated: these had no usable neighbor to interpolate
         # from, so the line above must not count them as if they had.
         logger.warning(
-            'A further %d cell(s) had no usable neighbour and were only '
+            'A further %d cell(s) had no usable neighbor and were only '
             'clipped into [0, 1]; those columns are not trustworthy.',
             clipped,
         )
@@ -334,11 +334,11 @@ def _load_table(directory, key):
     Returns
     -------
     ndarray
-        The materialised array.
+        The materialized array.
 
     Notes
     -----
-    ``np.load`` returns a lazy ``NpzFile``; the array is materialised and the
+    ``np.load`` returns a lazy ``NpzFile``; the array is materialized and the
     archive closed rather than leaking the handle until garbage collection.
     """
     if key in ('lower_limit', 'upper_limit'):
@@ -363,7 +363,7 @@ def _load_array(path, directory, name):
     Returns
     -------
     ndarray
-        The materialised array.
+        The materialized array.
 
     Raises
     ------

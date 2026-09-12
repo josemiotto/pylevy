@@ -1,7 +1,7 @@
-"""pandas objects in, labelled pandas objects out -- and nothing in the core.
+"""pandas objects in, labeled pandas objects out -- and nothing in the core.
 
 Two claims are tested here. The first is that labels survive: a density
-evaluated at a labelled index comes back with that index, because silently
+evaluated at a labeled index comes back with that index, because silently
 dropping it is how a misaligned join happens later. The second is that the
 numbers are the same ones the array path produces, bit for bit -- the pandas
 layer converts, it does not compute.
@@ -93,9 +93,9 @@ def test_frame_values_are_bit_identical_column_by_column(frame):
 
 def test_fit_on_a_series_matches_fit_on_its_values():
     sample = api.rvs(alpha=1.5, beta=0.0, size=500, random_state=3)
-    labelled = pd.Series(sample, index=pd.date_range("2021-01-01", periods=500))
+    labeled = pd.Series(sample, index=pd.date_range("2021-01-01", periods=500))
 
-    from_series = api.fit(labelled)
+    from_series = api.fit(labeled)
     from_array = api.fit(sample)
 
     assert from_series.params == from_array.params

@@ -109,7 +109,7 @@ jobs:
       # this workflow -- see docs/proposals/pypi-name.md: the `pylevy` versus
       # `levy-stable` decision is made by editing one line of pyproject.toml,
       # and the environment URL below has to follow it rather than go stale.
-      # Normalised as PyPI does (PEP 503), so `PyLevy` links to /project/pylevy/.
+      # Normalized as PyPI does (PEP 503), so `PyLevy` links to /project/pylevy/.
       - name: Read the distribution name
         id: name
         run: |
@@ -117,10 +117,10 @@ jobs:
           import os, re, tomllib
           with open("pyproject.toml", "rb") as handle:
               name = tomllib.load(handle)["project"]["name"]
-          normalised = re.sub(r"[-_.]+", "-", name).lower()
+          normalized = re.sub(r"[-_.]+", "-", name).lower()
           with open(os.environ["GITHUB_OUTPUT"], "a") as out:
-              out.write(f"name={normalised}\n")
-          print(f"distribution name: {name} -> {normalised}")
+              out.write(f"name={normalized}\n")
+          print(f"distribution name: {name} -> {normalized}")
           PY
 
   build:

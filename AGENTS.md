@@ -14,7 +14,7 @@ any of them, either it was not supposed to and you have a bug, or it was and you
 owe the reviewer evidence. For the density, distribution and sampling records
 that is a comparison against `levy._build.calculate_levy` showing the new
 values are closer to the truth. For the `fit_levy` records the truth is the
-maximum of the *interpolated* likelihood — that is what the fitter optimises —
+maximum of the *interpolated* likelihood — that is what the fitter optimizes —
 so the evidence is the negative log likelihood of the old and new optima on
 the same sample and the same tables, which must not get worse; a quadrature
 score is worth reporting alongside, but its per-point error (~1e-7 relative,
@@ -24,6 +24,19 @@ change makes, so it cannot adjudicate them on its own. See
 
 Never regenerate the golden file to make a test pass. That inverts the entire
 point of having it.
+
+## Language
+
+Everything is written in English, and the English is **American**: `behavior`,
+`center`, `normalize`, `labeled`, `analyze`, `artifact`, `judgment`, `gray`,
+`license` as both noun and verb. That covers identifiers, docstrings, comments,
+documentation, commit messages, pull request text, and replies to reviews. The
+prose was written in British English first and converted in one pass; do not
+reintroduce `-ise`, `-our`, `-re` or doubled `-ll-` spellings, and if you are
+unsure of a word, a dictionary's first spelling is the American one.
+
+Two things are not English and stay as they are: proper names (Lévy, Zolotarev,
+José María Miotto) and the parametrization letters, which are notation.
 
 ## Docstrings
 

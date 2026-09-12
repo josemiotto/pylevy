@@ -412,7 +412,7 @@ def test_rvs_rejects_a_non_integer_shape():
         api.rvs(alpha=1.5, beta=0.0, size=2.5)
 
 
-def test_fit_passes_the_normalised_pinned_values_to_the_fitter():
+def test_fit_passes_the_normalized_pinned_values_to_the_fitter():
     """The range checks converted each value with float() and then handed
     the original on, so a 0-d array or a numeric string reached the
     optimizer as it came. The fitter now receives plain floats.

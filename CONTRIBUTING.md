@@ -57,7 +57,7 @@ pre-commit install
 `levy`, `neglog_levy`, `random` and `fit_levy`, stored as exact hex floats so
 that a change to them shows up as a readable diff rather than a binary blob.
 
-**It is the centre of everything.** Every pull request either leaves it
+**It is the center of everything.** Every pull request either leaves it
 untouched, or changes it deliberately and says why.
 
 If your change moves a golden record, the pull request has to answer three
@@ -100,6 +100,7 @@ test suite, and it is cheap to produce.
 
 See [AGENTS.md](AGENTS.md). Briefly:
 
+- American English everywhere: code, comments, docs, commit messages.
 - NumPy-style docstrings, enforced by `ruff` and `numpydoc`.
 - No `print()` in library code. The package has a logger.
 - Pydantic validates at the API boundary and never inside a likelihood

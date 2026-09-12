@@ -193,7 +193,7 @@ def _grid_index(value, axis, length=None):
     -----
     This truncates rather than rounding to nearest, which is almost certainly
     unintentional -- but it is deliberately left alone here, because measuring
-    it showed that switching to nearest-neighbour does *not* improve accuracy.
+    it showed that switching to nearest-neighbor does *not* improve accuracy.
 
     Over 300 sampled points where the two strategies disagree, compared against
     :func:`levy._build.quadrature.calculate_levy` ground truth:
@@ -230,7 +230,7 @@ def _approximate(x, alpha, beta, cdf=False):
     Parameters
     ----------
     x : ndarray
-        Standardised values, outside the tabulated crossover limits.
+        Standardized values, outside the tabulated crossover limits.
     alpha : float
         Index of stability.
     beta : float

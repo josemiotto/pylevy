@@ -15,7 +15,7 @@
 
 """The default backend: the package's own NumPy implementation.
 
-Deliberately nothing but a re-export. The numerical core is not reorganised to
+Deliberately nothing but a re-export. The numerical core is not reorganized to
 accommodate a second backend, so adding torch cannot have moved a NumPy number
 -- there is no shared code to have changed.
 """

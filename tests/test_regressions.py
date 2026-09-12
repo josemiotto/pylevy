@@ -347,7 +347,7 @@ def test_alpha_1_nudge_is_well_conditioned():
     assert swing < 1e-6, f"one ULP in alpha moves _phi by {swing:.2%}"
 
 
-def test_alpha_1_is_continuous_with_its_neighbourhood():
+def test_alpha_1_is_continuous_with_its_neighborhood():
     """alpha exactly 1 must not be an outlier against alpha just either side."""
     stats = pytest.importorskip("scipy.stats")
     samples = {}
@@ -424,7 +424,7 @@ def test_repaired_column_is_monotone():
 
 
 def test_repair_survives_a_column_with_no_usable_cell():
-    """Whole column bad -> left is -1 and right is x_size, and the neighbour
+    """Whole column bad -> left is -1 and right is x_size, and the neighbor
     copy used to index one past the end of the table.
     """
     table = np.zeros((4, 2, 2), dtype="float64")
@@ -447,14 +447,14 @@ def test_repair_leaves_no_nan_in_a_column_with_no_usable_cell():
 
 
 def test_edge_cells_are_reported_as_copied_not_interpolated(caplog):
-    """A bad cell at the end of the x range has one usable neighbour, so it
+    """A bad cell at the end of the x range has one usable neighbor, so it
     is copied, not interpolated -- but it used to be counted and reported
     as interpolated along x.
     """
     import logging
 
     table = np.full((4, 2, 2), 0.5, dtype="float64")
-    table[0, 0, 0] = np.nan            # first x cell: neighbour on the right only
+    table[0, 0, 0] = np.nan            # first x cell: neighbor on the right only
     with caplog.at_level(logging.WARNING, logger="levy"):
         repaired = levy._repair_table("cdf", table)
     assert repaired[0, 0, 0] == 0.5

@@ -123,7 +123,7 @@ def require(name: str) -> ModuleType:
         return importlib.import_module(name)
     except ImportError as error:
         # find_spec itself can raise: a finder that refuses the name (as the
-        # no-pandas tests do) or a half-initialised module both count as
+        # no-pandas tests do) or a half-initialized module both count as
         # "not there".
         try:
             installed = importlib.util.find_spec(name) is not None

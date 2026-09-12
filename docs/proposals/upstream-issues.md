@@ -42,7 +42,7 @@ o en algún bug del código"* — is correct.
 > (.5 o 2 (cuando alpha=2, beta es irrelevante por que es la gaussiana))
 
 The note about `beta` being irrelevant at `alpha=2` is what identifies the
-reported `beta=1.00` as an artefact rather than a second symptom.
+reported `beta=1.00` as an artifact rather than a second symptom.
 
 ### It is not a local optimum
 
@@ -191,7 +191,7 @@ What was measured here, for the record:
   the supported range, the largest far-left-tail CDF value is 0.068 at
   `alpha=0.5, beta=−1`. No CDF above 1 remains.
 
-**Position taken here:** the maintainer's judgement stands, and this stack does
+**Position taken here:** the maintainer's judgment stands, and this stack does
 not reopen it. His stated reason — *"I guess they are unavoidable"* — is a
 hypothesis rather than a demonstration, and ragibson's technical points about
 `_get_closest_approx` (the all-NaN `argmin` returning 0, discarding 95% of the
@@ -261,6 +261,6 @@ checks in #14 and #15, which were run against `origin/master` directly. The
 per-parametrization local-optimum rates quoted in `CHANGELOG.md` come from a
 separate sweep of 12 truths × 3 seeds × 5 parametrizations.
 
-Numbers that came from a single sample are labelled as such. Where a claim is
+Numbers that came from a single sample are labeled as such. Where a claim is
 weaker than it looks — the unreproduced `alpha=2.00` mode in #20 — that is said
 in the text rather than left for a reviewer to discover.

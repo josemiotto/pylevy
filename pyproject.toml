@@ -176,7 +176,7 @@ files = ["src/levy/api.py", "src/levy/_typing.py", "src/levy/_compat.py",
 mypy_path = "src"
 strict = true
 
-# The core is not analysed at all: its symbols become `Any` here, which is
+# The core is not analyzed at all: its symbols become `Any` here, which is
 # honest -- it has no annotations to trust. api.py is still checked strictly,
 # and converts everything it gets back to a declared type at the boundary, so
 # nothing untyped escapes into a user's type checker.

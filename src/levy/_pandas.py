@@ -17,7 +17,7 @@
 
 Everything here is boundary work. The numerical core never sees a ``Series`` or
 a ``DataFrame``: :mod:`levy.api` unwraps to a plain array, computes, and puts
-the labels back. A density evaluated at a labelled index should come back with
+the labels back. A density evaluated at a labeled index should come back with
 that index attached -- losing it silently is how a misaligned join happens.
 
 pandas is optional and is never imported on its behalf. Detection goes through
