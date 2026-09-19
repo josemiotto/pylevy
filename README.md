@@ -46,15 +46,15 @@ Requires Python 3.9 or newer, NumPy, SciPy and pydantic. pandas and torch are ne
 
 ```python
 import numpy as np
-from levy import api
+import levy
 
 x = np.array([-1.0, 0.0, 1.0])
 
-api.pdf(x, alpha=1.5, beta=0.0)      # array([0.202038, 0.287353, 0.202038])
-api.cdf(x, alpha=1.5, beta=0.0)      # array([0.243658, 0.5     , 0.756342])
+levy.pdf(x, alpha=1.5, beta=0.0)      # array([0.202038, 0.287353, 0.202038])
+levy.cdf(x, alpha=1.5, beta=0.0)      # array([0.243658, 0.5     , 0.756342])
 
-sample = api.rvs(alpha=1.5, beta=0.0, size=1000, random_state=0)
-result = api.fit(sample)
+sample = levy.rvs(alpha=1.5, beta=0.0, size=1000, random_state=0)
+result = levy.fit(sample)
 result.params                        # StableParams(alpha=1.44, beta=0.098, mu=-0.072, sigma=0.962)
 result.negative_log_likelihood       # 2066.164
 ```
@@ -64,9 +64,9 @@ result.negative_log_likelihood       # 2066.164
 ### Evaluating the distribution
 
 ```python
-api.pdf(x, alpha=1.7, beta=0.3, mu=0.5, sigma=2.0)      # density
-api.cdf(x, alpha=1.7, beta=0.3, mu=0.5, sigma=2.0)      # distribution function
-api.logpdf(x, alpha=1.7, beta=0.3, mu=0.5, sigma=2.0)   # log density, floored so it is never -inf
+levy.pdf(x, alpha=1.7, beta=0.3, mu=0.5, sigma=2.0)      # density
+levy.cdf(x, alpha=1.7, beta=0.3, mu=0.5, sigma=2.0)      # distribution function
+levy.logpdf(x, alpha=1.7, beta=0.3, mu=0.5, sigma=2.0)   # log density, floored so it is never -inf
 ```
 
 All four parameters are keyword-only. `mu` defaults to 0 and `sigma` to 1.
@@ -74,8 +74,8 @@ All four parameters are keyword-only. `mu` defaults to 0 and `sigma` to 1.
 ### Sampling
 
 ```python
-api.rvs(alpha=1.5, beta=0.0, size=1000)                    # shape can be an int or a tuple
-api.rvs(alpha=1.5, beta=0.0, size=(10, 100), random_state=0)
+levy.rvs(alpha=1.5, beta=0.0, size=1000)                    # shape can be an int or a tuple
+levy.rvs(alpha=1.5, beta=0.0, size=(10, 100), random_state=0)
 ```
 
 Seeded draws are reproducible and leave the surrounding NumPy random stream exactly where it was.
@@ -83,9 +83,9 @@ Seeded draws are reproducible and leave the surrounding NumPy random stream exac
 ### Fitting
 
 ```python
-result = api.fit(sample)                       # everything free
-result = api.fit(sample, beta=0.0)             # symmetric: beta pinned
-result = api.fit(sample, alpha=1.0, beta=0.0)  # Cauchy: alpha and beta pinned
+result = levy.fit(sample)                       # everything free
+result = levy.fit(sample, beta=0.0)             # symmetric: beta pinned
+result = levy.fit(sample, alpha=1.0, beta=0.0)  # Cauchy: alpha and beta pinned
 
 result.params.alpha                            # a float
 result.params.as_tuple()                       # (alpha, beta, mu, sigma)
@@ -99,12 +99,12 @@ The search starts from a point derived from your data's median and interquartile
 Everything runs internally in Nolan's parametrization 0. Pass `par=` to work in another, or convert explicitly:
 
 ```python
-api.pdf(x, alpha=1.6, beta=0.5, mu=0.3, sigma=1.2, par='1')
+levy.pdf(x, alpha=1.6, beta=0.5, mu=0.3, sigma=1.2, par='1')
 
-params = api.StableParams.from_par(1.6, 0.5, 0.3, 1.2, par='1')
+params = levy.StableParams.from_par(1.6, 0.5, 0.3, 1.2, par='1')
 params.to_par('B')                             # (1.6, 0.5546, 0.246, 1.4243)
 
-api.fit(sample, par='M').as_par('0')
+levy.fit(sample, par='M').as_par('0')
 ```
 
 | `par` | Notation | Third and fourth parameters |
@@ -117,7 +117,7 @@ api.fit(sample, par='M').as_par('0')
 Parameters are checked where you write them, once, and never inside the likelihood loop:
 
 ```python
-api.pdf(x, alpha=0.2, beta=0.0)
+levy.pdf(x, alpha=0.2, beta=0.0)
 # ValidationError: alpha -- Input should be greater than or equal to 0.5
 ```
 
@@ -131,8 +131,8 @@ import pandas as pd
 prices = pd.read_csv("prices.csv", index_col="date", parse_dates=True)["close"]
 returns = np.log(prices).diff().dropna()
 
-api.pdf(returns, alpha=1.6, beta=0.0)          # a Series, same index
-api.fit(returns).to_series()
+levy.pdf(returns, alpha=1.6, beta=0.0)          # a Series, same index
+levy.fit(returns).to_series()
 # alpha    1.63
 # beta    -0.07
 # mu       0.00
@@ -156,7 +156,7 @@ for _ in range(400):
     optimizer.zero_grad()
     # Keep the optimizer's raw values inside the domain: clamp is
     # differentiable in the interior and stops the gradient at the edges.
-    loss = -api.logpdf(sample,
+    loss = -levy.logpdf(sample,
                        alpha=params[0].clamp(0.55, 1.95),
                        beta=params[1].clamp(-0.95, 0.95),
                        mu=params[2],
@@ -185,11 +185,11 @@ Every 1.x name still works. Away from the bugs 2.0 fixes, each returns exactly t
 
 | 1.x | 2.0 |
 |---|---|
-| `levy.levy(x, a, b)` | `api.pdf(x, alpha=a, beta=b)` |
-| `levy.levy(x, a, b, cdf=True)` | `api.cdf(x, alpha=a, beta=b)` |
-| `levy.neglog_levy(x, a, b, m, s)` | `-api.logpdf(x, alpha=a, beta=b, mu=m, sigma=s)` |
-| `levy.random(a, b, m, s, shape=n)` | `api.rvs(alpha=a, beta=b, mu=m, sigma=s, size=n)` |
-| `levy.fit_levy(x)` | `api.fit(x)` |
+| `levy.levy(x, a, b)` | `levy.pdf(x, alpha=a, beta=b)` |
+| `levy.levy(x, a, b, cdf=True)` | `levy.cdf(x, alpha=a, beta=b)` |
+| `levy.neglog_levy(x, a, b, m, s)` | `-levy.logpdf(x, alpha=a, beta=b, mu=m, sigma=s)` |
+| `levy.random(a, b, m, s, shape=n)` | `levy.rvs(alpha=a, beta=b, mu=m, sigma=s, size=n)` |
+| `levy.fit_levy(x)` | `levy.fit(x)` |
 
 The full table, and the list of what changed on purpose, is in the [migration guide](https://github.com/josemiotto/pylevy/blob/master/docs/source/migration.md).
 
@@ -251,7 +251,7 @@ All of these are gated in CI, on Linux, macOS and Windows, with NumPy 1.x and 2.
 ## 📊 Example Output
 
 ```text
->>> result = api.fit(sample)
+>>> result = levy.fit(sample)
 >>> result.params
 StableParams(alpha=1.4399998850328382, beta=0.09847779011605386, mu=-0.07193641709460895, sigma=0.9620643517415507)
 >>> result.to_series()

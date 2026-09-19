@@ -15,8 +15,10 @@ number, a NaN, or an error -- it returns the same floats, bit for bit.
 
 ### Added
 
-- `levy.api` — a typed, keyword-only API: `pdf`, `cdf`, `logpdf`, `rvs`, `fit`,
-  with a frozen `StableParams` carrying validated parameters. Out-of-range
+- A typed, keyword-only API: `levy.pdf`, `levy.cdf`, `levy.logpdf`, `levy.rvs`
+  and `levy.fit`, with a frozen `levy.StableParams` carrying validated
+  parameters. Defined in `levy.api`, and reachable there too; resolved lazily
+  at the top level, so `import levy` still does not import pydantic. Out-of-range
   values are rejected where they are written, naming the field. Pydantic is used
   only at this boundary; `tests/test_hot_loop.py` counts model constructions
   during a fit and fails if the number grows with the data.
@@ -95,14 +97,14 @@ be removed in a future major release.
 
 | 1.x | 2.0 | note |
 |---|---|---|
-| `levy.levy(x, a, b, cdf=False)` | `levy.api.pdf(x, alpha=a, beta=b)` | |
-| `levy.levy(x, a, b, cdf=True)` | `levy.api.cdf(x, alpha=a, beta=b)` | the `cdf=` flag is gone |
-| `levy.neglog_levy(...)` | `levy.api.logpdf(...)` | **opposite sign** — `logpdf` returns `log(pdf)` |
-| `levy.fit_levy(x)` | `levy.api.fit(x)` | returns a `FitResult`; rejects a misspelt parameter name |
-| `levy.random(..., shape=)` | `levy.api.rvs(..., size=)` | |
-| `levy.Parameters` | `levy.api.StableParams` | or `levy.parametrization.Parameters` for the fitting wrapper |
-| `levy.convert_to_par0` | `levy.api.StableParams.from_par` | validates the result |
-| `levy.convert_from_par0` | `levy.api.StableParams.to_par` | |
+| `levy.levy(x, a, b, cdf=False)` | `levy.pdf(x, alpha=a, beta=b)` | |
+| `levy.levy(x, a, b, cdf=True)` | `levy.cdf(x, alpha=a, beta=b)` | the `cdf=` flag is gone |
+| `levy.neglog_levy(...)` | `levy.logpdf(...)` | **opposite sign** — `logpdf` returns `log(pdf)` |
+| `levy.fit_levy(x)` | `levy.fit(x)` | returns a `FitResult`; rejects a misspelt parameter name |
+| `levy.random(..., shape=)` | `levy.rvs(..., size=)` | |
+| `levy.Parameters` | `levy.StableParams` | or `levy.parametrization.Parameters` for the fitting wrapper |
+| `levy.convert_to_par0` | `levy.StableParams.from_par` | validates the result |
+| `levy.convert_from_par0` | `levy.StableParams.to_par` | |
 | `levy.size` | `levy.constants.size` | |
 | `levy.par_bounds` | `levy.constants.par_bounds` | |
 | `levy.par_names` | `levy.constants.par_names` | |

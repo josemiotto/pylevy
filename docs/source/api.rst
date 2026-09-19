@@ -4,6 +4,11 @@ API reference
 The 2.0 API
 -----------
 
+Used as ``levy.pdf``, ``levy.cdf``, ``levy.logpdf``, ``levy.rvs``, ``levy.fit``
+and ``levy.StableParams``. They are defined in :mod:`levy.api`, which is why
+the entries below carry that path; ``levy.api.fit`` and ``levy.fit`` are the
+same object.
+
 .. automodule:: levy.api
    :members: pdf, cdf, logpdf, rvs, fit, StableParams, FitResult
    :member-order: bysource

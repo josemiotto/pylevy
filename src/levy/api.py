@@ -18,7 +18,9 @@
 Five keyword-only functions -- :func:`pdf`, :func:`cdf`, :func:`logpdf`,
 :func:`rvs` and :func:`fit` -- with the names a reader coming from
 ``scipy.stats`` already knows, and a frozen :class:`StableParams` carrying
-validated parameters between them.
+validated parameters between them. All of them are also reachable from the
+package itself -- ``levy.pdf``, ``levy.fit``, ``levy.StableParams`` -- which is
+the spelling the documentation uses; this module is where they are defined.
 
 The numerical core is untouched; every function here converts, validates once,
 and delegates. That is the whole design rule:

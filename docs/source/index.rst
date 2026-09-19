@@ -30,15 +30,15 @@ At a glance
 .. testcode::
 
    import numpy as np
-   from levy import api
+   import levy
 
    x = np.array([-1.0, 0.0, 1.0])
 
-   api.pdf(x, alpha=1.5, beta=0.0)
-   api.cdf(x, alpha=1.5, beta=0.0)
+   levy.pdf(x, alpha=1.5, beta=0.0)
+   levy.cdf(x, alpha=1.5, beta=0.0)
 
-   sample = api.rvs(alpha=1.5, beta=0.0, size=1000, random_state=0)
-   result = api.fit(sample)
+   sample = levy.rvs(alpha=1.5, beta=0.0, size=1000, random_state=0)
+   result = levy.fit(sample)
    result.params
 
 Parameters are validated where you write them, so ``alpha=0.2`` raises rather
