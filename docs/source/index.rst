@@ -16,13 +16,27 @@ makes fitting by maximum likelihood fast enough to be practical.
 Install
 -------
 
+.. note::
+
+   The ``pylevy`` name on PyPI still belongs to the 2005 package this one
+   descends from, so ``pip install pylevy`` does **not** install this yet.
+   Until the name is settled, install from the repository:
+
 .. code-block:: console
 
-   pip install pylevy
+   pip install git+https://github.com/josemiotto/pylevy
 
 Optional extras: ``pylevy[pandas]`` for labeled input and output,
 ``pylevy[torch]`` for a differentiable backend. Neither is imported unless it
 is installed and used.
+
+.. code-block:: console
+
+   pip install "pylevy[pandas] @ git+https://github.com/josemiotto/pylevy"
+
+Coming from 1.x? Every 1.x name still works and, away from the bugs 2.0
+fixes, returns the same numbers. :doc:`migration` lists each old name and its
+replacement.
 
 At a glance
 -----------
