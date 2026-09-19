@@ -52,7 +52,7 @@ dynamic = ["version"]
 dev = ["pytest>=7", "build", "twine"]
 # Pinned to a minor series: ruff adds rules in every release, so an unpinned
 # floor turns a green branch red on somebody else's schedule.
-lint = ["ruff>=0.16,<0.17", "numpydoc>=1.6", "mypy>=1.8"]
+lint = ["ruff>=0.16,<0.17", "numpydoc>=1.6", "mypy>=1.8", "cffconvert>=2.0"]
 # Optional. Nothing in the core imports pandas, and nothing tries to: support
 # is detected by looking in sys.modules, so an install without this extra never
 # pays for it. See levy/_compat.py.

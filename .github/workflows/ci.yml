@@ -255,6 +255,12 @@ jobs:
       - name: mypy (typed surface)
         run: python -m mypy
 
+      # GitHub only shows "Cite this repository" while the file parses; a
+      # broken CITATION.cff fails silently on the repository page, so it is
+      # checked here instead.
+      - name: CITATION.cff
+        run: cffconvert --validate
+
   extras:
     name: optional extras
     runs-on: ubuntu-latest

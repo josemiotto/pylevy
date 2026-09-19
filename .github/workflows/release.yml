@@ -38,7 +38,7 @@ env:
 
 jobs:
   check:
-    name: tag matches __version__
+    name: tag matches __version__ and CITATION.cff
     runs-on: ubuntu-latest
     outputs:
       name: ${{ steps.name.outputs.name }}
@@ -90,7 +90,7 @@ jobs:
       - name: Compare the tag against the package version
         run: |
           python - <<'PY'
-          import ast, os, pathlib, sys
+          import ast, os, pathlib, re, sys
 
           source = pathlib.Path("src/levy/__init__.py").read_text()
           version = None
@@ -103,6 +103,16 @@ jobs:
           print(f"tag={tag!r} __version__={version!r}")
           if tag != f"v{version}":
               sys.exit(f"tag {tag!r} does not match v{version}; refusing to publish")
+
+          # CITATION.cff is what GitHub's "Cite this repository" renders, and
+          # it carries its own version field. Same rule: it must agree with
+          # the tag, or the citation names a version this release is not.
+          cff = pathlib.Path("CITATION.cff").read_text()
+          match = re.search(r"^version:\s*(\S+)\s*$", cff, re.MULTILINE)
+          cited = match.group(1) if match else None
+          print(f"CITATION.cff version={cited!r}")
+          if cited != version:
+              sys.exit(f"CITATION.cff says {cited!r}, __version__ says {version!r}; refusing to publish")
           PY
 
       # The distribution name is deliberately not written anywhere else in
