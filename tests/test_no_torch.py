@@ -103,7 +103,7 @@ def test_selecting_torch_fails_with_an_instruction_not_a_traceback():
     assert result.returncode == 0, result.stderr
     message = result.stdout.strip()
     assert "torch" in message
-    assert 'pip install "pylevy[torch]"' in message, message
+    assert 'pip install "levy-stable[torch]"' in message, message
 
 
 def test_the_failure_comes_at_selection_not_at_the_first_evaluation():
@@ -135,7 +135,7 @@ def test_an_explicit_backend_argument_also_explains_itself():
         try:
             api.pdf(np.array([1.0]), alpha=1.5, beta=0.0, backend='torch')
         except ImportError as error:
-            print('pylevy[torch]' in str(error))
+            print('levy-stable[torch]' in str(error))
     """)
     assert result.returncode == 0, result.stderr
     assert result.stdout.strip() == "True"

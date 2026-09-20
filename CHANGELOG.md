@@ -13,6 +13,11 @@ and adds a typed, validated API. **Every 1.x name still works**, and away
 from the defects listed under *Fixed* below -- calls that returned a wrong
 number, a NaN, or an error -- it returns the same floats, bit for bit.
 
+This is the first release on PyPI, as **`levy-stable`**. The import name is
+still `levy`. The `pylevy` name on PyPI belongs to the 2005 package this one
+descends from, and its author declined to transfer it; see
+`docs/proposals/pypi-name.md`.
+
 ### Added
 
 - A typed, keyword-only API: `levy.pdf`, `levy.cdf`, `levy.logpdf`, `levy.rvs`

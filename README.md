@@ -1,5 +1,7 @@
 # 📈 pylevy
 
+`pip install levy-stable` · `import levy`
+
 Lévy alpha-stable distributions for Python: density, distribution function, sampling, and maximum-likelihood fitting. Stable distributions are the heavy-tailed generalization of the normal, and computing their density directly means a slow numerical integration for every point. pylevy interpolates a precomputed table instead, which is what makes fitting them by maximum likelihood fast enough to be practical.
 
 [![CI](https://github.com/josemiotto/pylevy/actions/workflows/ci.yml/badge.svg)](https://github.com/josemiotto/pylevy/actions/workflows/ci.yml)
@@ -24,21 +26,21 @@ Lévy alpha-stable distributions for Python: density, distribution function, sam
 
 ### Installation
 
-> **Note:** the `pylevy` name on PyPI belongs to the 2005 package this one descends from, so `pip install pylevy` does **not** install this. Install from a clone until the name is settled ([docs/proposals/pypi-name.md](https://github.com/josemiotto/pylevy/blob/master/docs/proposals/pypi-name.md)).
-
 ```bash
-git clone https://github.com/josemiotto/pylevy.git
-cd pylevy
-pip install .
+pip install levy-stable
 ```
+
+The distribution is `levy-stable` and the import name is `levy`. (The `pylevy` name on PyPI belongs to the unrelated 2005 package this one descends from; see [docs/proposals/pypi-name.md](https://github.com/josemiotto/pylevy/blob/master/docs/proposals/pypi-name.md).)
 
 Optional extras:
 
 ```bash
-pip install ".[pandas]"          # labeled input and output
-pip install ".[torch]"           # differentiable backend
-pip install ".[pandas,torch]"    # both
+pip install "levy-stable[pandas]"          # labeled input and output
+pip install "levy-stable[torch]"           # differentiable backend
+pip install "levy-stable[pandas,torch]"    # both
 ```
+
+Or from a clone, for development: `pip install -e ".[dev]"`.
 
 Requires Python 3.9 or newer, NumPy, SciPy and pydantic. pandas and torch are never imported unless you install the extra and use it.
 
@@ -317,7 +319,7 @@ GPL-3.0-or-later. See [LICENSE](https://github.com/josemiotto/pylevy/blob/master
 
 ## 🙏 Acknowledgements
 
-- **Paul Harrison** wrote the original package and the table-interpolation approach, in 2005
+- **Paul Harrison** wrote the original package and the table-interpolation approach, in 2005. This package descends from that code; he is not involved in it.
 - **José María Miotto** picked it up in 2016 and has maintained it since
 - **Esteban Carisimo** wrote 2.0: the typed API, the extras, the test suite, and the CI
 

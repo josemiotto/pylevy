@@ -20,8 +20,8 @@ from levy import __version__  # noqa: E402
 # -- Project information -----------------------------------------------------
 
 project = 'pylevy'
-copyright = '2026, Paul Harrison, José María Miotto and contributors'
-author = 'Paul Harrison, José María Miotto and contributors'
+copyright = '2005 Paul Harrison; 2016-2026 José María Miotto and contributors'
+author = 'José María Miotto and contributors'
 
 # Read from the package rather than repeated here. The two had already drifted:
 # this file said 1.1 while the tag said 1.2.

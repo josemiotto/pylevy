@@ -90,7 +90,7 @@ result = levy.fit(x)
 result.params.alpha, result.params.beta      # frozen and validated
 result.negative_log_likelihood
 result.params.to_par('B')                    # in another parametrization
-result.to_series()                           # with pylevy[pandas]
+result.to_series()                           # with levy-stable[pandas]
 ```
 
 ## Bugs that were fixed

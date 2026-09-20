@@ -158,7 +158,7 @@ jobs:
       # this workflow -- see docs/proposals/pypi-name.md: the `pylevy` versus
       # `levy-stable` decision is made by editing one line of pyproject.toml,
       # and the environment URL below has to follow it rather than go stale.
-      # Normalized as PyPI does (PEP 503), so `PyLevy` links to /project/pylevy/.
+      # Normalized as PyPI does (PEP 503), so `levy_stable` links to /project/levy-stable/.
       - name: Read the distribution name
         id: name
         run: |

@@ -8,7 +8,7 @@ from levy._compat import require
 
 
 def test_require_names_the_extra_when_the_module_is_not_installed():
-    expected = r'not installed.*pip install "pylevy\[no_such_module_xyz\]"'
+    expected = r'not installed.*pip install "levy-stable\[no_such_module_xyz\]"'
     with pytest.raises(ImportError, match=expected):
         require("no_such_module_xyz")
 
