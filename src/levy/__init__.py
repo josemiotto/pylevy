@@ -66,11 +66,11 @@ References
 Examples
 --------
 >>> import numpy as np
->>> from levy import api
->>> np.round(api.cdf(np.array([1.0, 2.0]), alpha=1.5, beta=0.0), 6)
+>>> import levy
+>>> np.round(levy.cdf(np.array([1.0, 2.0]), alpha=1.5, beta=0.0), 6)
 array([0.756342, 0.89496 ])
->>> x = api.rvs(alpha=1.5, beta=0.0, size=200, random_state=0)
->>> bool(np.allclose(api.fit(x).params.as_tuple(), [1.525, -0.078, 0.048, 0.986], atol=5e-3))
+>>> x = levy.rvs(alpha=1.5, beta=0.0, size=200, random_state=0)
+>>> bool(np.allclose(levy.fit(x).params.as_tuple(), [1.525, -0.078, 0.048, 0.986], atol=5e-3))
 True
 """
 
@@ -106,6 +106,13 @@ __version__ = "2.0.0"
 
 #: The 2.0 surface.
 _CURRENT = [
+    'pdf',
+    'cdf',
+    'logpdf',
+    'rvs',
+    'fit',
+    'StableParams',
+    'FitResult',
     'api',
     'backends',
     'set_backend',
@@ -129,35 +136,35 @@ _CURRENT = [
 _DEPRECATED = {
     'levy': (
         'levy.distribution', 'levy',
-        'levy.api.pdf() for a density and levy.api.cdf() for a distribution '
+        'levy.pdf() for a density and levy.cdf() for a distribution '
         'function; the cdf= flag is gone',
     ),
     'neglog_levy': (
         'levy.distribution', 'neglog_levy',
-        'levy.api.logpdf(), which returns log(pdf) -- note the opposite sign',
+        'levy.logpdf(), which returns log(pdf) -- note the opposite sign',
     ),
     'fit_levy': (
         'levy.fitting', 'fit_levy',
-        'levy.api.fit(), which returns a FitResult and rejects a misspelt '
+        'levy.fit(), which returns a FitResult and rejects a misspelt '
         'parameter name instead of ignoring it',
     ),
     'random': (
         'levy.sampling', 'random',
-        'levy.api.rvs(), which takes size= rather than shape=',
+        'levy.rvs(), which takes size= rather than shape=',
     ),
     'Parameters': (
         'levy.parametrization', 'Parameters',
-        'levy.api.StableParams to carry parameters, or '
+        'levy.StableParams to carry parameters, or '
         'levy.parametrization.Parameters if you need the fitting wrapper that '
         'tracks which components are held fixed',
     ),
     'convert_to_par0': (
         'levy.parametrization', 'convert_to_par0',
-        'levy.api.StableParams.from_par(), which validates the result',
+        'levy.StableParams.from_par(), which validates the result',
     ),
     'convert_from_par0': (
         'levy.parametrization', 'convert_from_par0',
-        'levy.api.StableParams.to_par()',
+        'levy.StableParams.to_par()',
     ),
     'size': ('levy.constants', 'size', 'levy.constants.size'),
     'par_bounds': ('levy.constants', 'par_bounds', 'levy.constants.par_bounds'),
@@ -165,6 +172,13 @@ _DEPRECATED = {
     'default': ('levy.constants', 'default', 'levy.constants.default'),
     'f_bounds': ('levy.constants', 'f_bounds', 'levy.constants.f_bounds'),
 }
+
+# The typed API. Defined in levy.api and reached here as `levy.pdf(...)`,
+# `levy.fit(...)` and so on, which is the spelling the documentation uses;
+# `levy.pdf` is the same object. Resolved lazily for the same reason `api`
+# itself is below: pydantic stays off the critical path of `import levy` until
+# a caller actually uses this surface.
+_API = ('pdf', 'cdf', 'logpdf', 'rvs', 'fit', 'StableParams', 'FitResult')
 
 # Submodules, resolved on attribute access by __getattr__ below. Several of
 # them do also become attributes as a side effect of the re-exports above, but
@@ -196,7 +210,7 @@ __all__ = _CURRENT + sorted(_DEPRECATED)
 
 
 def __getattr__(name):
-    """Resolve the 1.x names, `levy.api`, and the ``levy._build`` helpers.
+    """Resolve the typed API, the 1.x names, the submodules and the ``levy._build`` helpers.
 
     Parameters
     ----------
@@ -220,6 +234,9 @@ def __getattr__(name):
     resolves to the very same object 1.1 exported, so numbers cannot drift
     between the old spelling and the new one. Only the lookup is intercepted.
     """
+    if name in _API:
+        return getattr(importlib.import_module('levy.api'), name)
+
     if name in _SUBMODULES:
         return importlib.import_module(f'levy.{name}')
 

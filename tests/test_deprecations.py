@@ -24,13 +24,13 @@ import levy
 
 # (name, module it now lives in, a fragment the message must name)
 DEPRECATED = [
-    ("levy", "levy.distribution", "levy.api.pdf"),
-    ("neglog_levy", "levy.distribution", "levy.api.logpdf"),
-    ("fit_levy", "levy.fitting", "levy.api.fit"),
-    ("random", "levy.sampling", "levy.api.rvs"),
-    ("Parameters", "levy.parametrization", "levy.api.StableParams"),
-    ("convert_to_par0", "levy.parametrization", "levy.api.StableParams.from_par"),
-    ("convert_from_par0", "levy.parametrization", "levy.api.StableParams.to_par"),
+    ("levy", "levy.distribution", "levy.pdf"),
+    ("neglog_levy", "levy.distribution", "levy.logpdf"),
+    ("fit_levy", "levy.fitting", "levy.fit"),
+    ("random", "levy.sampling", "levy.rvs"),
+    ("Parameters", "levy.parametrization", "levy.StableParams"),
+    ("convert_to_par0", "levy.parametrization", "levy.StableParams.from_par"),
+    ("convert_from_par0", "levy.parametrization", "levy.StableParams.to_par"),
     ("size", "levy.constants", "levy.constants.size"),
     ("par_bounds", "levy.constants", "levy.constants.par_bounds"),
     ("par_names", "levy.constants", "levy.constants.par_names"),
@@ -102,8 +102,8 @@ def test_using_the_new_api_emits_no_warning():
     code = (
         "import warnings, numpy as np; warnings.simplefilter('error'); "
         "import levy; "
-        "levy.api.pdf(np.array([1.0]), alpha=1.5, beta=0.0); "
-        "levy.api.fit(np.array([0.1, -0.4, 1.2, 0.3, -1.1]))"
+        "levy.pdf(np.array([1.0]), alpha=1.5, beta=0.0); "
+        "levy.fit(np.array([0.1, -0.4, 1.2, 0.3, -1.1]))"
     )
     result = subprocess.run(
         [sys.executable, "-c", code],
@@ -181,6 +181,19 @@ def test_the_2_0_surface_does_not_warn():
         assert levy.PACKAGED_DATA
         assert levy.ROOT
         assert levy.api is not None
+        for name in ("pdf", "cdf", "logpdf", "rvs", "fit", "StableParams", "FitResult"):
+            assert getattr(levy, name) is getattr(levy.api, name)
+
+
+def test_the_typed_api_is_reachable_from_the_package():
+    # `levy.fit` is the spelling the documentation uses; `levy.api.fit` is the
+    # same object, not a wrapper, so the two cannot drift.
+    from levy import StableParams, fit
+
+    assert fit is levy.api.fit
+    assert StableParams is levy.api.StableParams
+    assert "fit" in dir(levy)
+    assert "fit" in levy.__all__
 
 
 # --------------------------------------------------------------------------

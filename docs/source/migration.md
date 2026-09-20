@@ -19,15 +19,15 @@ module the function actually lives in — `levy.distribution.levy` rather than
 
 | 1.x | 2.0 |
 |---|---|
-| `levy.levy(x, a, b, cdf=False)` | `levy.api.pdf(x, alpha=a, beta=b)` |
-| `levy.levy(x, a, b, cdf=True)` | `levy.api.cdf(x, alpha=a, beta=b)` |
-| `levy.neglog_levy(x, a, b, m, s)` | `-levy.api.logpdf(x, alpha=a, beta=b, mu=m, sigma=s)` |
-| `levy.fit_levy(x)` | `levy.api.fit(x)` |
-| `levy.random(a, b, m, s, shape=n)` | `levy.api.rvs(alpha=a, beta=b, mu=m, sigma=s, size=n)` |
-| `levy.Parameters(...)` to carry values | `levy.api.StableParams(alpha=..., beta=..., mu=..., sigma=...)` |
+| `levy.levy(x, a, b, cdf=False)` | `levy.pdf(x, alpha=a, beta=b)` |
+| `levy.levy(x, a, b, cdf=True)` | `levy.cdf(x, alpha=a, beta=b)` |
+| `levy.neglog_levy(x, a, b, m, s)` | `-levy.logpdf(x, alpha=a, beta=b, mu=m, sigma=s)` |
+| `levy.fit_levy(x)` | `levy.fit(x)` |
+| `levy.random(a, b, m, s, shape=n)` | `levy.rvs(alpha=a, beta=b, mu=m, sigma=s, size=n)` |
+| `levy.Parameters(...)` to carry values | `levy.StableParams(alpha=..., beta=..., mu=..., sigma=...)` |
 | `levy.Parameters(...)` as the fitting state (`.x`, `.variables`, `.get`) | `levy.parametrization.Parameters` — same class, no warning |
-| `levy.convert_to_par0[p](v)` | `levy.api.StableParams.from_par(*v, par=p)` |
-| `levy.convert_from_par0[p](v)` | `levy.api.StableParams(alpha=v[0], beta=v[1], mu=v[2], sigma=v[3]).to_par(p)` |
+| `levy.convert_to_par0[p](v)` | `levy.StableParams.from_par(*v, par=p)` |
+| `levy.convert_from_par0[p](v)` | `levy.StableParams(alpha=v[0], beta=v[1], mu=v[2], sigma=v[3]).to_par(p)` |
 | `levy.size` | `levy.constants.size` |
 | `levy.par_bounds` | `levy.constants.par_bounds` |
 | `levy.par_names` | `levy.constants.par_names` |
@@ -56,14 +56,14 @@ alpha, beta, mu, sigma = 1.5, 0.3, 0.1, 1.2
 total_1x = levy.neglog_levy(x, alpha, beta, mu, sigma).sum()
 
 # 2.0
-total_20 = -levy.api.logpdf(x, alpha=alpha, beta=beta, mu=mu, sigma=sigma).sum()
+total_20 = -levy.logpdf(x, alpha=alpha, beta=beta, mu=mu, sigma=sigma).sum()
 
 assert np.isclose(total_1x, total_20)
 ```
 
 ### The new functions are keyword-only
 
-`api.pdf(x, 1.5, 0.0)` is a `TypeError`. This is deliberate: `levy(x, 1.5, 0.0,
+`levy.pdf(x, 1.5, 0.0)` is a `TypeError`. This is deliberate: `levy(x, 1.5, 0.0,
 0.0, 1.0, True)` is not something anyone should have to decode, and the six
 positional arguments were easy to get out of order.
 
@@ -71,10 +71,10 @@ positional arguments were easy to get out of order.
 
 ```python
 levy.levy(x, 0.4, 0.0)            # 1.x: values for alpha ~ 1.94, silently
-levy.api.pdf(x, alpha=0.4, beta=0.0)   # 2.0: ValidationError, naming alpha
+levy.pdf(x, alpha=0.4, beta=0.0)   # 2.0: ValidationError, naming alpha
 ```
 
-Along the same lines, `api.fit` rejects a keyword that is not a parameter name.
+Along the same lines, `levy.fit` rejects a keyword that is not a parameter name.
 `fit_levy` took `**kwargs` and ignored anything it did not recognize, so
 `fit_levy(x, beta_=0.0)` fitted `beta` freely and said nothing.
 
@@ -86,7 +86,7 @@ parameters, nll = levy.fit_levy(x)
 alpha, beta, mu, sigma = parameters.get('0')
 
 # 2.0
-result = levy.api.fit(x)
+result = levy.fit(x)
 result.params.alpha, result.params.beta      # frozen and validated
 result.negative_log_likelihood
 result.params.to_par('B')                    # in another parametrization
