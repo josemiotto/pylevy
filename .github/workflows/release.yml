@@ -10,6 +10,10 @@ name: Release
 # See docs/proposals/pypi-name.md: the distribution name is read from
 # pyproject.toml, so the `pylevy` versus `levy-stable` decision can be made at
 # merge time and does not block anything.
+#
+# Rehearsal: Actions tab -> Release -> Run workflow, from master, with
+# "dry run" ticked and no tag. The check and build jobs run against master's
+# HEAD as if `v<levy.__version__>` had been pushed; publish and attach do not.
 
 on:
   push:
@@ -21,9 +25,18 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: "Existing tag to release, e.g. v2.0.0"
-        required: true
+        description: "Existing tag to release, e.g. v2.0.0. A dry run may leave it empty."
+        required: false
         type: string
+      # Rehearsal: the check and build jobs run, publish and attach do not.
+      # Left without a tag, it rehearses the release master's HEAD would
+      # need -- `v` plus `levy.__version__` -- which is the question worth
+      # asking before cutting the tag: would pushing it publish?
+      dry_run:
+        description: "Check and build only; publish nothing, create no release"
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -54,11 +67,41 @@ jobs:
           echo "start manual releases from master, not ${{ github.ref }}"
           exit 1
 
-      # The full history, so the tag can be checked for ancestry below.
+      # The full history, so the tag can be checked for ancestry below. A
+      # dry run without a tag checks out the branch it was started on.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
-          ref: refs/tags/${{ env.RELEASE_TAG }}
+          ref: ${{ inputs.tag && format('refs/tags/{0}', inputs.tag) || github.ref }}
           fetch-depth: 0
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+        with:
+          python-version: "3.12"
+
+      # A dry run started without a tag rehearses the tag master's HEAD
+      # would need. That tag must not exist yet: if it does, the release it
+      # names was already cut, and the rehearsal would be of the past.
+      - name: Name the tag a dry run stands in for
+        if: inputs.dry_run && inputs.tag == ''
+        run: |
+          version=$(python - <<'PY'
+          import ast, pathlib
+          source = pathlib.Path("src/levy/__init__.py").read_text()
+          for node in ast.parse(source).body:
+              if isinstance(node, ast.Assign):
+                  for target in node.targets:
+                      if getattr(target, "id", None) == "__version__":
+                          print(ast.literal_eval(node.value))
+          PY
+          )
+          tag="v$version"
+          if git rev-parse --verify --quiet "refs/tags/$tag^{commit}" >/dev/null; then
+            echo "$tag already exists; a dry run rehearses a release not yet cut"
+            exit 1
+          fi
+          git tag "$tag" HEAD   # local to this checkout; nothing is pushed
+          echo "RELEASE_TAG=$tag" >> "$GITHUB_ENV"
+          echo "dry run: rehearsing $tag at $(git rev-parse --short HEAD)"
 
       # Three things a version string cannot prove, checked here once and
       # handed to every later job as one immutable commit:
@@ -77,10 +120,6 @@ jobs:
             || { echo "$RELEASE_TAG ($sha) is not on master; refusing to publish"; exit 1; }
           echo "sha=$sha" >> "$GITHUB_OUTPUT"
           echo "releasing $RELEASE_TAG at $sha"
-
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
-        with:
-          python-version: "3.12"
 
       # levy.__version__ is the single source of truth. Releasing v2.0.1 from a
       # tree that says "2.0.0" would put a wheel on PyPI whose metadata
@@ -174,6 +213,9 @@ jobs:
   publish:
     name: publish to PyPI
     needs: [check, build]
+    # Skipped on a dry run, and `attach` with it: a job whose dependency was
+    # skipped is skipped too. Nothing leaves the runner.
+    if: ${{ !inputs.dry_run }}
     runs-on: ubuntu-latest
     environment:
       name: pypi
