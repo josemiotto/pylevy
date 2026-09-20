@@ -260,6 +260,83 @@ def test_fit_recovers_parameters_it_generated_from():
     assert abs(fitted.sigma - 1.0) < 0.15
 
 
+# --------------------------------------------------------------------------
+# weights
+# --------------------------------------------------------------------------
+
+def test_fit_with_unit_weights_is_bit_identical_to_unweighted():
+    np.random.seed(31)
+    sample = levy.random(1.5, 0.0, 0.0, 1.0, shape=(300,))
+    plain = api.fit(sample)
+    weighted = api.fit(sample, weights=np.ones(300))
+    assert weighted.params == plain.params
+    assert weighted.negative_log_likelihood == plain.negative_log_likelihood
+
+
+# The two fits in each of the next two tests minimize the same objective, but
+# not from the same data-derived starting point (it is computed from the
+# unweighted sample either way), so L-BFGS-B stops at slightly different
+# points within its own tolerance. The optimum values agree tightly; the
+# parameters agree to about 1e-5, hence the tolerances.
+
+def test_fit_with_integer_weights_matches_repeating_the_observations():
+    # Weight 2 means "as if it appeared twice".
+    np.random.seed(32)
+    sample = levy.random(1.6, 0.3, 0.0, 1.0, shape=(300,))
+    weights = np.random.randint(1, 4, size=300)
+
+    weighted = api.fit(sample, weights=weights)
+    repeated = api.fit(np.repeat(sample, weights))
+
+    np.testing.assert_allclose(
+        weighted.params.as_tuple(), repeated.params.as_tuple(), rtol=0, atol=1e-4)
+    np.testing.assert_allclose(
+        weighted.negative_log_likelihood, repeated.negative_log_likelihood, rtol=1e-9)
+
+
+def test_fit_ignores_observations_with_weight_zero():
+    np.random.seed(33)
+    sample = levy.random(1.5, 0.0, 0.0, 1.0, shape=(300,))
+    weights = np.ones(300)
+    weights[:100] = 0.0
+
+    zeroed = api.fit(sample, weights=weights)
+    dropped = api.fit(sample[100:])
+
+    np.testing.assert_allclose(
+        zeroed.params.as_tuple(), dropped.params.as_tuple(), rtol=0, atol=1e-4)
+    np.testing.assert_allclose(
+        zeroed.negative_log_likelihood, dropped.negative_log_likelihood, rtol=1e-9)
+
+
+def test_fit_with_weights_agrees_with_fit_levy():
+    np.random.seed(34)
+    sample = levy.random(1.5, 0.0, 0.0, 1.0, shape=(300,))
+    weights = np.random.uniform(0.5, 2.0, size=300)
+
+    expected, expected_nll = levy.fit_levy(sample, weights=weights)
+    result = api.fit(sample, weights=weights)
+
+    assert np.array_equal(np.asarray(result.params.as_tuple()), expected.get("0"))
+    assert result.negative_log_likelihood == expected_nll
+
+
+@pytest.mark.parametrize(("weights", "message"), [
+    (np.ones(299), "one entry per observation"),
+    (np.ones((300, 1)) * -1.0, "non-negative"),
+    (np.full(300, np.nan), "finite"),
+    (np.full(300, np.inf), "finite"),
+    (np.zeros(300), "not all be zero"),
+])
+def test_fit_rejects_bad_weights(weights, message):
+    np.random.seed(35)
+    sample = levy.random(1.5, 0.0, 0.0, 1.0, shape=(300,))
+    with pytest.raises(ValueError, match=message):
+        api.fit(sample, weights=weights)
+    with pytest.raises(ValueError, match=message):
+        levy.fit_levy(sample, weights=weights)
+
+
 def test_fit_result_is_frozen():
     np.random.seed(1)
     sample = levy.random(1.5, 0.0, shape=(50,))

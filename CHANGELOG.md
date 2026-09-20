@@ -72,6 +72,13 @@ number, a NaN, or an error -- it returns the same floats, bit for bit.
   fitted by gradient descent. `torch.autograd.gradcheck` passes for all four
   parameters, for pdf, cdf and the negative log density, in float64. NumPy
   remains the default, and an install without the extra never imports torch.
+- `weights=` on `fit` and on `fit_levy`: one non-negative weight per
+  observation, minimizing the weighted negative log likelihood. A weight of 2
+  counts an observation twice, 0 drops it; a wrong length, a negative or
+  non-finite weight, or all-zero weights raise `ValueError`. Contributed as
+  [#16](https://github.com/josemiotto/pylevy/pull/16) by Wesley Tansey against
+  1.x; ported to 2.0. The unweighted path is unchanged, expression for
+  expression, so no golden moved.
 
 ### Changed
 

@@ -875,6 +875,7 @@ def fit(
     x: ArrayLike,
     *,
     par: Parametrization = '0',
+    weights: Optional[ArrayLike] = None,
     **fixed: float,
 ) -> FitResult:
     """Fit a stable distribution to data by maximum likelihood.
@@ -887,6 +888,11 @@ def fit(
     par : {'0', '1', 'M', 'A', 'B'}, default '0'
         Parametrization to search in. It sets the feasible region and the
         starting point, so different choices can reach different optima.
+    weights : array_like or Series, optional
+        One non-negative weight per observation. An observation with weight 2
+        counts as if it appeared twice; one with weight 0 is ignored. The
+        reported likelihood is then the weighted one. A Series is accepted; its
+        index is not matched against the sample's, only its length.
     **fixed
         Any of the names in ``levy.par_names[par]``, pinned to a value instead
         of being estimated.
@@ -903,6 +909,9 @@ def fit(
         If a keyword is not a parameter name of `par`. The 1.x
         :func:`levy.fitting.fit_levy` silently ignored such a keyword, so a
         typo cost you an unconstrained fit and no warning.
+    ValueError
+        If `weights` is not the same length as `x`, holds a negative or
+        non-finite value, or sums to zero.
 
     See Also
     --------
@@ -923,6 +932,11 @@ def fit(
 
     >>> tuple(round(v, 2) for v in fit(x, beta=0.0).params.as_tuple())
     (1.53, 0.0, 0.03, 0.99)
+
+    Weights of one reproduce the unweighted fit:
+
+    >>> fit(x, weights=np.ones(200)).params == fit(x).params
+    True
     """
     _check_par(par)
     unknown = set(fixed) - set(par_names[par])
@@ -961,7 +975,13 @@ def fit(
             f'{names[3]} must be strictly positive, got {fixed[names[3]]!r}'
         )
 
-    parameters, nll = _fit_levy(as_sample(x), par=par, **pinned)
+    sample = as_sample(x)
+    parameters, nll = _fit_levy(
+        sample,
+        par=par,
+        weights=None if weights is None else as_sample(weights),
+        **pinned,
+    )
     alpha, beta, mu, sigma = (float(v) for v in parameters.get('0'))
     # A fit in B can report a beta_0 a few ULP outside [-1, 1] for the same
     # rounding reason as from_par. Without this, fit() raised a ValidationError
