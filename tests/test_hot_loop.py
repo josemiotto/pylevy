@@ -2,7 +2,7 @@
 
 This is the test that makes the new dependency defensible. A stable fit runs
 thousands of density evaluations; if a model were constructed inside that loop,
-`pip install pylevy` would have bought a validation library and paid for it in
+`pip install levy-stable` would have bought a validation library and paid for it in
 the one place where this package's whole reason to exist is speed.
 
 The invariant is not "few constructions" but "a number that does not grow with

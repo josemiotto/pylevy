@@ -3,8 +3,6 @@ title: pylevy
 message: If you use this software, please cite it as below.
 type: software
 authors:
-  - family-names: Harrison
-    given-names: Paul
   - family-names: Miotto
     given-names: José María
     email: josemiotto@gmail.com
@@ -23,6 +21,15 @@ license: GPL-3.0-or-later
 repository-code: https://github.com/josemiotto/pylevy
 version: 2.0.0
 references:
+  - type: software
+    title: PyLevy
+    version: "0.4"
+    year: 2005
+    authors:
+      - family-names: Harrison
+        given-names: Paul
+    url: http://www.logarithmic.net/pfh/pylevy
+    notes: The package this one descends from.
   - type: book
     title: Univariate Stable Distributions
     authors:

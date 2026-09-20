@@ -110,7 +110,7 @@ def test_to_series_fails_with_an_instruction_not_a_traceback():
     assert result.returncode == 0, result.stderr
     message = result.stdout.strip()
     assert "pandas" in message
-    assert 'pip install "pylevy[pandas]"' in message, message
+    assert 'pip install "levy-stable[pandas]"' in message, message
 
 
 def test_labels_of_is_a_dictionary_lookup_when_pandas_is_absent():

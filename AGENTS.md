@@ -95,7 +95,7 @@ subprocess with each blocked at the import system. If you add a third optional
 dependency, add the matching pair of test files.
 
 When an optional dependency really is required for something, raise through
-`levy._compat.require`, which names the extra: `pip install "pylevy[torch]"`,
+`levy._compat.require`, which names the extra: `pip install "levy-stable[torch]"`,
 not an `ImportError` from three frames down.
 
 ## Types

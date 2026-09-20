@@ -133,7 +133,7 @@ def require(name: str) -> ModuleType:
             extra = _EXTRAS.get(name, name)
             raise ImportError(
                 f'{name} is needed for this, and is not installed. '
-                f'Install it with: pip install "pylevy[{extra}]"'
+                f'Install it with: pip install "levy-stable[{extra}]"'
             ) from error
         raise ImportError(
             f'{name} is installed but failed to import: {error}. The install '

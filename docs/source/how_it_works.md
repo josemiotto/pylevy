@@ -154,7 +154,7 @@ directory over the packaged tables when it holds a complete set.
 
 ## The differentiable backend
 
-With `pylevy[torch]` installed, the same interpolation runs on tensors and
+With `levy-stable[torch]` installed, the same interpolation runs on tensors and
 carries gradients, so a stable distribution can be fitted by gradient descent
 inside a larger model.
 

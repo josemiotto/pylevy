@@ -3,14 +3,15 @@ requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "PyLevy"
+name = "levy-stable"
 description = "A package for calculating and fitting Levy stable distributions."
 readme = { file = "README.md", content-type = "text/markdown" }
 license = "GPL-3.0-or-later"
 license-files = ["LICENSE"]
 requires-python = ">=3.9"
+# The people who publish this distribution. The 2005 package it descends
+# from is credited in the README, CITATION.cff and the source header.
 authors = [
-    { name = "Paul Harrison" },
     { name = "José María Miotto", email = "josemiotto@gmail.com" },
     { name = "Esteban Carisimo" },
 ]

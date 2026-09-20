@@ -1,5 +1,19 @@
 # Which name to publish under
 
+## Resolution (2026-09-20)
+
+Published as **`levy-stable`**. The import name stays `levy`.
+
+Path (a) below was tried in full. Paul Harrison was written to on 1 September
+2026 and again on 19 September; he replied on 20 September and declined,
+preferring that this project use a name of its own. A PEP 541 request had been
+filed on 11 September while waiting (pypi/support#12225); it was withdrawn the
+same day he replied, as promised in the request.
+
+That settles it, and on reflection it is the right outcome: this repository
+descends from his 2005 code, but he has had no part in it, and a name is a
+claim of association. He remains credited as the original author.
+
 ## The situation
 
 **This package has never been published to PyPI.** `setup.py` declared
@@ -21,7 +35,7 @@ traction: there is nothing to install.
 
 Strong case, and it costs one email:
 
-- Same lineage. This *is* the continuation of that package.
+- Same lineage: this repository descends from that package.
 - Paul Harrison is credited as an author here, so there is no dispute about
   provenance.
 - The PyPI project has been dormant for twenty years.
