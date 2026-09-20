@@ -187,7 +187,47 @@ def _data_scaled_start(x, par, fixed):
     return start
 
 
-def fit_levy(x, par='0', **kwargs):
+def _check_weights(weights, x):
+    """Validate a weight vector against the sample, or pass ``None`` through.
+
+    Parameters
+    ----------
+    weights : array_like or None
+        One weight per observation, or ``None`` for an unweighted fit.
+    x : array_like
+        The sample the weights belong to; only its length is used.
+
+    Returns
+    -------
+    ndarray or None
+        The weights as a flat float64 array, or ``None``.
+
+    Raises
+    ------
+    ValueError
+        If the lengths differ, a weight is negative or non-finite, or every
+        weight is zero -- an objective that is zero everywhere has no optimum,
+        and the optimizer would return its starting point as if it were one.
+    """
+    if weights is None:
+        return None
+    weights = np.asarray(weights, dtype='d').ravel()
+    n = np.size(x)
+    if weights.shape[0] != n:
+        raise ValueError(
+            f'weights must have one entry per observation: got '
+            f'{weights.shape[0]} weights for {n} observations'
+        )
+    if not np.all(np.isfinite(weights)):
+        raise ValueError('weights must be finite')
+    if np.any(weights < 0.0):
+        raise ValueError('weights must be non-negative')
+    if not np.any(weights > 0.0):
+        raise ValueError('weights must not all be zero')
+    return weights
+
+
+def fit_levy(x, par='0', weights=None, **kwargs):
     """Estimate the parameters of a Levy stable distribution by maximum likelihood.
 
     By default, searches all possible Levy stable distributions. The search can
@@ -200,6 +240,11 @@ def fit_levy(x, par='0', **kwargs):
         Values to be fitted.
     par : {'0', '1', 'M', 'A', 'B'}, default '0'
         Parametrization the fit is carried out and reported in.
+    weights : array_like, optional
+        One non-negative weight per observation. The objective becomes the
+        weighted sum of negative log densities, so an observation with weight
+        2 counts as if it appeared twice and one with weight 0 is ignored.
+        ``None`` is an unweighted fit.
     **kwargs
         Any of the names in ``par_names[par]``. A parameter given a value is
         held fixed; one left out is estimated.
@@ -209,7 +254,14 @@ def fit_levy(x, par='0', **kwargs):
     parameters : levy.parametrization.Parameters
         The fitted parameters.
     nll : float
-        Negative log likelihood of the data under them.
+        Negative log likelihood of the data under them; weighted, if
+        `weights` was given.
+
+    Raises
+    ------
+    ValueError
+        If `weights` is not the same length as `x`, holds a negative or
+        non-finite value, or sums to zero.
 
     See Also
     --------
@@ -263,6 +315,7 @@ def fit_levy(x, par='0', **kwargs):
     True
     """
     values = {par_name: kwargs.get(par_name) for par_name in par_names[par]}
+    weights = _check_weights(weights, x)
 
     parameters = Parameters(par=par, **values)
     temp = Parameters(par=par, **values)
@@ -283,7 +336,12 @@ def fit_levy(x, par='0', **kwargs):
         """
         temp.x = param
         alpha, beta, mu, sigma = temp.get('0')
-        return np.sum(neglog_levy(x, alpha, beta, mu, sigma))
+        # The unweighted branch is kept as it was, expression for expression,
+        # so the golden file's floats do not depend on this feature and the
+        # common case pays for no multiply.
+        if weights is None:
+            return np.sum(neglog_levy(x, alpha, beta, mu, sigma))
+        return np.sum(weights * neglog_levy(x, alpha, beta, mu, sigma))
 
     bounds = tuple(par_bounds[i] for i in parameters.variables)
 

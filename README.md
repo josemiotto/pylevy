@@ -94,6 +94,8 @@ result.negative_log_likelihood
 
 The search starts from a point derived from your data's median and interquartile range as well as from the historical constant, and keeps the better optimum. That is what makes fitting data at a scale of `0.005` work where it used to stall at a boundary.
 
+Observations can be weighted: `levy.fit(sample, weights=w)` minimizes the weighted negative log likelihood, so a weight of 2 counts an observation twice and a weight of 0 drops it. Weights must be non-negative and one per observation.
+
 ### Parametrizations
 
 Everything runs internally in Nolan's parametrization 0. Pass `par=` to work in another, or convert explicitly:

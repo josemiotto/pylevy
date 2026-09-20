@@ -102,6 +102,19 @@ def test_fit_on_a_series_matches_fit_on_its_values():
     assert from_series.negative_log_likelihood == from_array.negative_log_likelihood
 
 
+def test_fit_weights_accept_a_series():
+    np.random.seed(36)
+    values = api.rvs(alpha=1.5, beta=0.0, size=300, random_state=36)
+    weights = np.random.uniform(0.5, 2.0, size=300)
+    series = pd.Series(values, index=pd.RangeIndex(300))
+
+    expected = api.fit(values, weights=weights)
+    got = api.fit(series, weights=pd.Series(weights, index=series.index))
+
+    assert got.params == expected.params
+    assert got.negative_log_likelihood == expected.negative_log_likelihood
+
+
 def test_fit_on_a_one_column_frame_matches_the_series():
     sample = api.rvs(alpha=1.5, beta=0.0, size=300, random_state=4)
     frame = pd.DataFrame({"x": sample})
