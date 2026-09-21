@@ -24,10 +24,10 @@ He remains credited as the author of the 2005 package: in the README, in
 ## Why `levy-stable`
 
 It names what the package computes, and it is the name of the distribution in
-`scipy.stats`, so it is what anyone looking for this will type. It owes nothing
-to anyone. Verified free on 20 September 2026; `pylevy2`, `pylevy-ng`,
-`alphastable` and `levyfit` were free too, and the `pylevy*` spellings were
-set aside because they lean on a name whose owner had just said no.
+`scipy.stats`, so it is what anyone looking for this will type. Verified free
+on 20 September 2026. `pylevy2`, `pylevy-ng`, `alphastable` and `levyfit` were
+free too; the `pylevy*` spellings were passed over so that the new name stands
+on its own rather than on the old one.
 
 Two things a user may notice:
 
