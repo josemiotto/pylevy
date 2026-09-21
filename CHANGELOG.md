@@ -5,7 +5,7 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.0.0] - unreleased
+## [2.0.0] - 2026-09-21
 
 The package could not be built on Python 3.12, had no tests and no CI, and
 carried several defects that returned wrong numbers silently. 2.0 fixes that
