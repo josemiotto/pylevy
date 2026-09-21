@@ -7,9 +7,8 @@ name: Release
 # and rotated -- three steps a dormant maintainer will not do. Trusted
 # Publishing needs one configuration on PyPI and then nothing, ever.
 #
-# See docs/proposals/pypi-name.md: the distribution name is read from
-# pyproject.toml, so the `pylevy` versus `levy-stable` decision can be made at
-# merge time and does not block anything.
+# The distribution name is read from pyproject.toml, nowhere else; see
+# docs/proposals/pypi-name.md for why it is `levy-stable`.
 #
 # Rehearsal: Actions tab -> Release -> Run workflow, from master, with
 # "dry run" ticked and no tag. The check and build jobs run against master's
@@ -155,9 +154,8 @@ jobs:
           PY
 
       # The distribution name is deliberately not written anywhere else in
-      # this workflow -- see docs/proposals/pypi-name.md: the `pylevy` versus
-      # `levy-stable` decision is made by editing one line of pyproject.toml,
-      # and the environment URL below has to follow it rather than go stale.
+      # this workflow: it is one line of pyproject.toml, and the environment
+      # URL below has to follow it rather than go stale.
       # Normalized as PyPI does (PEP 503), so `levy_stable` links to /project/levy-stable/.
       - name: Read the distribution name
         id: name

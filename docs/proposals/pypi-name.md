@@ -1,98 +1,59 @@
-# Which name to publish under
+# The distribution name
 
-## Resolution (2026-09-20)
+The package is published on PyPI as **`levy-stable`**. The import name is
+`levy`, and the repository is `josemiotto/pylevy`. Three names, on purpose;
+this note records why, so nobody reopens the question by accident.
 
-Published as **`levy-stable`**. The import name stays `levy`.
+## Why not `pylevy`
 
-Path (a) below was tried in full. Paul Harrison was written to on 1 September
-2026 and again on 19 September; he replied on 20 September and declined,
-preferring that this project use a name of its own. A PEP 541 request had been
-filed on 11 September while waiting (pypi/support#12225); it was withdrawn the
-same day he replied, as promised in the request.
+The `pylevy` name on PyPI belongs to Paul Harrison's original PyLevy (2005),
+the package this repository descends from. Its three releases carry no files;
+nothing was ever installable under the name.
 
-That settles it, and on reflection it is the right outcome: this repository
-descends from his 2005 code, but he has had no part in it, and a name is a
-claim of association. He remains credited as the original author.
+He was asked to add a maintainer, on 1 September 2026 and again on 19
+September. He replied on 20 September and declined, preferring that this
+project use a name of its own. That is his call: he has had no part in this
+repository, and a name is a claim of association. A PEP 541 request filed on
+11 September while waiting (pypi/support#12225) was withdrawn the day he
+replied, as it had promised.
 
-## The situation
+He remains credited as the author of the 2005 package: in the README, in
+`CITATION.cff` as a reference, and in the copyright notice at the top of
+`levy/__init__.py`.
 
-**This package has never been published to PyPI.** `setup.py` declared
-`name='PyLevy'`, and `pyproject.toml` still does, but no release was ever
-uploaded.
+## Why `levy-stable`
 
-The `pylevy` slot on PyPI is taken. It belongs to Paul Harrison's original 2005
-package — version 0.3, maintainer `pfh` — which is the ancestor this repository
-was forked from, and which Harrison is still credited as an author of here.
+It names what the package computes, and it is the name of the distribution in
+`scipy.stats`, so it is what anyone looking for this will type. Verified free
+on 20 September 2026. `pylevy2`, `pylevy-ng`, `alphastable` and `levyfit` were
+free too; the `pylevy*` spellings were passed over so that the new name stands
+on its own rather than on the old one.
 
-So `pip install pylevy` today installs twenty-year-old code, and there is
-currently no way to install this repository except from source. That is worth
-stating plainly, because it is the single largest reason the package has no
-traction: there is nothing to install.
+Two things a user may notice:
 
-## Two paths
+- `pip install levy-stable` but `import levy`, as with `scikit-learn`/`sklearn`
+  or `Pillow`/`PIL`. The README says so on its first line.
+- The unrelated PyPI package `levy` (a configuration parser, last release
+  2021) also installs a top-level `levy` package. The two cannot coexist in one
+  environment. This has been true for as long as this package has used
+  `import levy`; changing the import name would break every 1.x user for the
+  sake of that one collision, so it stays.
 
-### (a) Take over the `pylevy` name
+The repository is not renamed: the URL is what issues, citations and the Read
+the Docs project point at, and it is not this package's to rename. A full
+rename is a separate decision that loses nothing by waiting.
 
-Strong case, and it costs one email:
+## Where the name is spelled
 
-- Same lineage: this repository descends from that package.
-- Paul Harrison is credited as an author here, so there is no dispute about
-  provenance.
-- The PyPI project has been dormant for twenty years.
-- The name is what people already type.
+The release workflow reads the distribution name from `pyproject.toml`, so
+renaming again is one line there plus the places that spell it for humans:
 
-Two routes, in order of preference:
+- `src/levy/_compat.py`: the install hint in the missing-extra error, and the
+  tests that assert its wording (`tests/test_compat.py`,
+  `tests/test_no_pandas.py`, `tests/test_no_torch.py`);
+- the same hint in `AGENTS.md`, `docs/source/how_it_works.md` and
+  `docs/source/migration.md`;
+- the install sections of `README.md` and `docs/source/index.rst`;
+- the release note at the top of `CHANGELOG.md`.
 
-1. **Ask.** Email `pfh` and ask to be added as an owner of the PyPI project.
-   Twenty years dormant, same lineage, friendly request — this usually just
-   works, and it is far faster than the alternative.
-2. **PEP 541.** If there is no reply after a reasonable interval, file a
-   [PEP 541 name-transfer request](https://peps.python.org/pep-0541/) at
-   `pypi/support`. The criteria — abandoned project, requester is continuing the
-   same work — are met about as clearly as they ever are.
-
-### (b) Publish as `levy-stable`
-
-Verified free at the time of writing, as are `pylevy2` and `pylevy-ng`.
-
-`levy-stable` is the better fallback: it says what the package computes, it is
-what someone searching for this would plausibly type, and it does not read as a
-fork-of-a-fork the way `pylevy2` does.
-
-The cost is real, though: the import name would stay `levy` while the
-distribution name is `levy-stable`, which is a small permanent papercut for
-users, and search traffic for "pylevy" would keep landing on the 2005 package.
-
-## Recommendation
-
-Pursue (a) first, fall back to (b). Start with the email, not the PEP 541
-request.
-
-## This does not block anything
-
-The release workflow reads the distribution name from `pyproject.toml`, so the
-decision can be made at merge time — or after — by editing one line:
-
-```toml
-[project]
-name = "PyLevy"        # or "levy-stable"
-```
-
-The import name is `levy` either way. A few other places spell the
-distribution name and would need the same one-word edit, all findable with
-`grep -rn 'pylevy\['`:
-
-- `src/levy/_compat.py`: the install hint in the missing-extra error,
-  `pip install "pylevy[torch]"`, and the two tests that assert its wording
-  (`tests/test_no_pandas.py`, `tests/test_no_torch.py`);
-- the same hint quoted in `AGENTS.md`, `docs/source/index.rst`,
-  `docs/source/how_it_works.md` and `docs/source/migration.md`.
-
-None of them affects what gets built or uploaded; the release workflow reads
-the name from `pyproject.toml` and links to the matching PyPI page.
-
-## While it is unresolved
-
-The README should not tell people to `pip install pylevy`, because that installs
-the 2005 package. It currently says `pip install .`, which is correct for a
-source checkout and should stay that way until the name is settled.
+All findable with `grep -rn 'levy-stable'`.

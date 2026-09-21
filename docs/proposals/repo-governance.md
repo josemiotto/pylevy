@@ -83,9 +83,14 @@ Proposed, to go in `CONTRIBUTING.md` once agreed:
 `.github/workflows/release.yml` publishes via OIDC, which needs one
 configuration on PyPI and no stored secret:
 
-- [ ] On PyPI, project → Publishing → Add a new pending publisher
-      - Owner: `josemiotto`, repository: `pylevy`
+- [ ] On PyPI, Account → Publishing → Add a new pending publisher, from the
+      account that will own the project
+      - Project name: `levy-stable` (see [pypi-name.md](pypi-name.md))
+      - Owner: `josemiotto`, repository: `pylevy` — the GitHub repository
+        the workflow runs in, not the PyPI account
       - Workflow: `release.yml`, environment: `pypi`
+      A second publisher pointing at a maintainer's fork keeps releases
+      possible if access to the upstream repository is ever lost.
 - [ ] In GitHub: Settings → Environments → New environment `pypi`, and add
       yourself as a required reviewer so a publish cannot happen unattended
 - [ ] In the same environment, set deployment branches and tags to
@@ -94,7 +99,6 @@ configuration on PyPI and no stored secret:
       `master`; this setting makes the platform refuse them too, so the OIDC
       credential is never issued to a run that started from a branch.
 
-See [pypi-name.md](pypi-name.md) for which project name this applies to.
 
 ## 5. GitHub Pages
 
