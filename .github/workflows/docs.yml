@@ -76,7 +76,7 @@ jobs:
       # A plain artifact, not a Pages artifact: there is no Pages site to
       # deploy to yet (see the header). Uploaded on every run, so a reviewer
       # can download the rendered site for a pull request.
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: docs-html
           path: docs/_build/html
